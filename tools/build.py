@@ -12,11 +12,11 @@ root = pathlib.Path(__file__).resolve().parents[1]
 out = root / 'dist'
 stage = root / '.publication'
 version = ET.parse(root / 'Plugins/ListenBrainzLove/install.xml').findtext('version')
-assert version == '0.1.1', 'Review release metadata before changing version'
+assert version == '0.1.2', 'Review release metadata before changing version'
 repository = 'https://github.com/vysmaty/lyrion-listenbrainz-love'
 
 # Explicit publication allowlist: never archive arbitrary files from the worktree.
-files = [root / n for n in ('.gitignore', 'LICENSE', 'README.md', 'README.en.md')]
+files = [root / n for n in ('.gitattributes', '.gitignore', 'LICENSE', 'README.md', 'README.en.md')]
 for directory, pattern in (('Plugins/ListenBrainzLove', '*.pm'),
                            ('Plugins/ListenBrainzLove', '*.xml'),
                            ('Plugins/ListenBrainzLove', '*.txt'),
@@ -49,7 +49,9 @@ def archive(path, entries):
             info.create_system = 3
             info.external_attr = 0o100644 << 16
             info.compress_type = zipfile.ZIP_DEFLATED
-            z.writestr(info, source.read_bytes())
+            # Every allowlisted publication input is text. LMS on Linux requires
+            # LF in strings.txt; normalize archives regardless of checkout OS.
+            z.writestr(info, source.read_bytes().replace(b'\r\n', b'\n'))
     with zipfile.ZipFile(path) as z:
         assert z.testzip() is None
 
@@ -87,7 +89,7 @@ stage.mkdir()
 for p in files:
     dest = stage / p.relative_to(root)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(p, dest)
+    dest.write_bytes(p.read_bytes().replace(b'\r\n', b'\n'))
 source = out / f'ListenBrainzLove-{version}-source.zip'
 archive(source, [(stage / p.relative_to(root), 'lyrion-listenbrainz-love/' + p.relative_to(root).as_posix()) for p in files])
 shutil.copyfile(root / 'repo.xml', out / 'repo.xml')
