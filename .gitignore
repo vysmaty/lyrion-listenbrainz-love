@@ -1,0 +1,19 @@
+# Local verification evidence, server state, and credentials: never publish.
+/evidence/
+/.local/
+/dist/
+/.publication/
+.env
+.env.*
+!.env.example
+*.prefs
+*.log
+*.pem
+*.key
+*.p12
+*.zip
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+*~

@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<extensions>
+  <details>
+    <title lang="EN">ListenBrainzLove</title>
+  </details>
+  <plugins>
+    <plugin name="ListenBrainzLove" version="0.1.0" minTarget="9.1.0" maxTarget="*">
+      <title lang="EN">ListenBrainz Love</title>
+      <desc lang="EN">Explicit ListenBrainz Love with exact recording verification; no scrobbling.</desc>
+      <creator>ListenBrainzLove contributors</creator>
+      <category>tools</category>
+      <link>https://github.com/vysmaty/lyrion-listenbrainz-love</link>
+      <url>https://github.com/vysmaty/lyrion-listenbrainz-love/releases/download/v0.1.0/ListenBrainzLove-0.1.0.zip</url>
+      <sha>61602cd27ced68f29161b7ae8ef8f9e1bc503fde</sha>
+    </plugin>
+  </plugins>
+</extensions>

@@ -1,0 +1,3 @@
+PLUGIN_LISTENBRAINZLOVE
+	EN	ListenBrainz Love
+	CS	ListenBrainz Love

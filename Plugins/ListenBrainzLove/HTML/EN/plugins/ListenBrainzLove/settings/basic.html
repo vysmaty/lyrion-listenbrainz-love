@@ -1,0 +1,10 @@
+[% PROCESS settings/header.html %]
+[% WRAPPER setting title="PLUGIN_LISTENBRAINZLOVE" desc="" %]
+<p>Explicit Love only. This plugin never scrobbles. Enter your ListenBrainz username and token; Save validates the account.</p>
+<label for="username">ListenBrainz username</label>
+<input type="text" id="username" name="username" value="[% username | html %]" autocomplete="off" />
+<label for="token">User token (blank keeps existing token)</label>
+<input type="password" id="token" name="token" value="" autocomplete="new-password" />
+<p>The token is stored in local LMS preferences. Restrict access to the settings page and preferences directory. Use a trusted HTTPS connection to LMS.</p>
+[% END %]
+[% PROCESS settings/footer.html %]

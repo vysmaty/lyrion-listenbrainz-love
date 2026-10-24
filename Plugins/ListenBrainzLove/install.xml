@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<extension>
+ <id>ListenBrainzLove</id>
+ <name>PLUGIN_LISTENBRAINZLOVE</name>
+ <module>Plugins::ListenBrainzLove::Plugin</module>
+ <version>0.1.0</version>
+ <description>Explicit ListenBrainz Love with exact recording verification; no scrobbling.</description>
+ <creator>ListenBrainzLove contributors</creator>
+ <category>tools</category><defaultState>disabled</defaultState>
+ <optionsURL>plugins/ListenBrainzLove/settings/basic.html</optionsURL>
+ <type>2</type>
+ <targetApplication><id>Lyrion Music Server</id><minVersion>9.1.0</minVersion><maxVersion>*</maxVersion></targetApplication>
+</extension>
