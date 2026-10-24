@@ -10,7 +10,7 @@ BEGIN {
  package FixtureHandler; our $meta={artist=>'Artist',title=>'Before',version=>'Live',musicbrainz_id=>'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'}; sub getMetadataFor { $meta }
  package FixtureTrack; sub url {'https://station.invalid/stream'} sub remote {1}
  package FixtureSong; sub currentTrack {bless {},'FixtureTrack'}
- package FixtureClient; sub isPlaying {1} sub playingSong {bless {},'FixtureSong'}
+ package FixtureClient; our $playing=1; sub isPlaying {$playing} sub playingSong {bless {},'FixtureSong'}
 }
 my $loaded=eval {require Plugins::ListenBrainzLove::Plugin;1};
 ok($loaded,'plugin adapter loads') or diag($@);
@@ -29,6 +29,22 @@ if ($loaded) {
  is($captured->{version},'Live','capture version');
  is($captured->{mbid},'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee','capture radio MBID');
  like($returned->{items}[0]{name},qr/verified/i,'success only explicit verified response');
+ is($returned->{items}[0]{type},'text','success remains a visible, non-actionable menu item');
+ ok(!$returned->{items}[0]{showBriefly},'XMLBrowser must not consume the success as a transient popup');
+ { no warnings qw(redefine once); local *Plugins::ListenBrainzLove::Core::love=sub { $_[4]->({ok=>0,error=>'No unique recording identity'}) };
+ $menu->[0]{url}->($client,sub{$returned=shift},{});
+ }
+ is($returned->{items}[0]{name},'ListenBrainz Love failed: No unique recording identity','failure reason remains readable');
+ is($returned->{items}[0]{type},'text','failure remains a visible, non-actionable menu item');
+ ok(!$returned->{items}[0]{showBriefly},'XMLBrowser must not consume the failure as a transient popup');
+ my $love_calls=0;
+ { no warnings qw(redefine once); local *Plugins::ListenBrainzLove::Core::love=sub { $love_calls++ };
+ local $FixtureClient::playing=0;
+ $menu->[0]{url}->($client,sub{$returned=shift},{});
+ }
+ is($love_calls,0,'stopped playback never sends feedback from an old menu');
+ like($returned->{items}[0]{name},qr/failed: No reliable current artist\/title metadata/,'stopped playback reports the capture failure');
+ is($returned->{items}[0]{type},'text','capture failure remains visible');
  Plugins::ListenBrainzLove::Plugin->shutdownPlugin;
  ok(!$Slim::Menu::TrackInfo::provider{listenbrainzLove},'provider cleanup');
 }

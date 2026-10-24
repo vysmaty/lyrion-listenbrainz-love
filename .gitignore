@@ -1,7 +1,7 @@
 # Local verification evidence, server state, and credentials: never publish.
 /evidence/
 /.local/
-/dist/
+/dist/*
 /.publication/
 .env
 .env.*
@@ -12,6 +12,7 @@
 *.key
 *.p12
 *.zip
+!/dist/ListenBrainzLove-0.1.1.zip
 __pycache__/
 *.py[cod]
 .pytest_cache/

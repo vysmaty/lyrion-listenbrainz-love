@@ -12,7 +12,7 @@ root = pathlib.Path(__file__).resolve().parents[1]
 out = root / 'dist'
 stage = root / '.publication'
 version = ET.parse(root / 'Plugins/ListenBrainzLove/install.xml').findtext('version')
-assert version == '0.1.0', 'Review release metadata before changing version'
+assert version == '0.1.1', 'Review release metadata before changing version'
 repository = 'https://github.com/vysmaty/lyrion-listenbrainz-love'
 
 # Explicit publication allowlist: never archive arbitrary files from the worktree.
@@ -29,7 +29,10 @@ assert all(p.is_file() and not p.is_symlink() and root in p.resolve().parents
 
 out.mkdir(exist_ok=True)
 (root / 'evidence').mkdir(exist_ok=True)
-tests = subprocess.run(['prove', '-v', 't'], cwd=root, text=True,
+prove = shutil.which('prove')
+if prove is None:
+    raise SystemExit('Install Perl prove and add it to PATH before building')
+tests = subprocess.run([prove, '-v', 't'], cwd=root, text=True,
                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 # Do not overwrite historical development logs.
 (root / 'evidence/publication-tests.log').write_text(tests.stdout)

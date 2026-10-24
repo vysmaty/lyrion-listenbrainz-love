@@ -37,7 +37,7 @@ sub trackInfo {
  return unless $client && $client->isPlaying && $client->playingSong && $client->playingSong->currentTrack->url eq $url;
  return [{name=>'ListenBrainz: Love currently playing',type=>'link',url=>sub {
   my ($c,$cb)=@_;
-  my $reply=sub { my($result)=@_; $cb->({items=>[{name=>$result->{ok}?'ListenBrainz Love verified':('ListenBrainz Love failed: '.($result->{error}||'Unknown error')),showBriefly=>1}]}) };
+  my $reply=sub { my($result)=@_; $cb->({items=>[{name=>$result->{ok}?'ListenBrainz Love verified':('ListenBrainz Love failed: '.($result->{error}||'Unknown error')),type=>'text'}]}) };
   my $snapshot=eval {capture($c)};
   return $reply->({ok=>0,error=>'No reliable current artist/title metadata'}) unless $snapshot;
   my $core=Plugins::ListenBrainzLove::Core->new(transport=>sub { require Plugins::ListenBrainzLove::Transport; Plugins::ListenBrainzLove::Transport::request(@_) });
