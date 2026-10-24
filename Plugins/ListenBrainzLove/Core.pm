@@ -12,7 +12,7 @@ sub love {
  my $fail=sub { $finish->({ok=>0,error=>shift}) };
  return $fail->('Missing artist or title') unless ref($input) eq 'HASH' && !grep { !defined($input->{$_}) || ref($input->{$_}) || $input->{$_} !~ /\S/ } qw(artist title);
  return $fail->('Invalid credentials') unless defined($token) && $token =~ /\A[^\s\x00-\x1f\x7f]{1,256}\z/ && defined($user) && $user =~ /\A[A-Za-z0-9_.-]{1,64}\z/;
- my $track={map {$_=>defined($input->{$_}) ? "$input->{$_}" : ''} qw(artist title version mbid)};
+ my $track={map {$_=>defined($input->{$_}) ? "$input->{$_}" : ''} qw(artist title version mbid release duration tracknumber)};
  my $request=sub {
   my ($method,$path,$auth,$body,$cb)=@_;
   return $fail->('Click expired; click Love again') if $clock->()-$now>30;
@@ -47,6 +47,28 @@ sub love {
    });
   });
  };
+ my $obtain_identity=sub {
+  return $fail->('Recording identity is not available yet; retry after a completed listen') unless $self->{allow_playing_now};
+  my $current=eval {ref($self->{is_current}) eq 'CODE' && $self->{is_current}->($track)};
+  return $fail->('Playback changed or stopped; click Love again') unless $current;
+  my $info={media_player=>'Lyrion Music Server',submission_client=>'ListenBrainzLove'};
+  if(length $track->{duration}) {
+   return $fail->('Invalid current track duration') unless $track->{duration}=~/\A\d+(?:\.\d+)?\z/ && $track->{duration}<=24*24*60*60;
+   $info->{duration}=int($track->{duration}) if $track->{duration}>0;
+  }
+  if(length $track->{tracknumber}) {
+   return $fail->('Invalid current track number') unless $track->{tracknumber}=~/\A\d{1,4}\z/;
+   $info->{tracknumber}=sprintf('%d',$track->{tracknumber}) if $track->{tracknumber}>0;
+  }
+  $info->{version}=$track->{version} if length $track->{version};
+  my $metadata={artist_name=>$track->{artist},track_name=>$track->{title},additional_info=>$info};
+  $metadata->{release_name}=$track->{release} if length $track->{release};
+  $request->('POST','/1/submit-listens?return_msid=true',1,{listen_type=>'playing_now',payload=>[{track_metadata=>$metadata}]},sub {
+   my ($reply)=@_;
+   return $fail->('Playing-now did not return a valid recording identity') unless ($reply->{status}||'') eq 'ok' && uuid($reply->{recording_msid});
+   $send->('recording_msid',$reply->{recording_msid});
+  });
+ };
  $request->('GET','/1/validate-token',1,undef,sub {
   my ($valid)=@_;
   return $fail->('Invalid token or username') unless defined($valid->{valid}) && "$valid->{valid}" eq '1' && ($valid->{user_name}||'') eq $user;
@@ -69,10 +91,17 @@ sub love {
      next if $recent && (!defined($row->{listened_at}) || $row->{listened_at}!~/\A\d+\z/ || $row->{listened_at}<$now-300 || $row->{listened_at}>$now);
      if (uuid(($m->{mbid_mapping}||{})->{recording_mbid})) { $ids{'recording_mbid:'.$m->{mbid_mapping}{recording_mbid}}=1 }
      elsif (uuid($row->{recording_msid})) { $ids{'recording_msid:'.$row->{recording_msid}}=1 }
-     else { return $fail->('Matching listen has no valid recording identity') }
+     elsif (uuid(($m->{additional_info}||{})->{recording_msid})) { $ids{'recording_msid:'.$m->{additional_info}{recording_msid}}=1 }
+     else {
+      # A normal playing-now response may contain only metadata. Continue to
+      # completed listens, while rejecting any explicitly malformed identity.
+      next if !$recent && !length(($m->{mbid_mapping}||{})->{recording_mbid}||'') && !length($row->{recording_msid}||'') && !length(($m->{additional_info}||{})->{recording_msid}||'');
+      return $fail->('Matching listen has no valid recording identity');
+     }
     }
     return $lookup->(1) if !keys(%ids) && !$recent;
-    return $fail->('No unique recording identity') unless keys(%ids)==1;
+    return $obtain_identity->() unless keys %ids;
+    return $fail->('More than one recording identity matches') unless keys(%ids)==1;
     my ($key,$id)=split /:/,(keys %ids)[0]; $send->($key,$id);
    });
   };

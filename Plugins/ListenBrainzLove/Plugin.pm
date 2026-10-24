@@ -24,13 +24,13 @@ sub capture {
  if ($track->remote) {
   my $handler=Slim::Player::ProtocolHandlers->handlerForURL($track->url);
   die 'No live metadata provider' unless $handler && $handler->can('getMetadataFor');
-  my $remote=$handler->getMetadataFor($client,$track->url);
+  my $remote=$handler->getMetadataFor($client,$track->url,'forceCurrent');
   die 'No live track metadata' unless ref($remote) eq 'HASH';
-  %meta=(artist=>$remote->{artist},title=>$remote->{title},version=>$remote->{version},mbid=>$remote->{recording_mbid}||$remote->{musicbrainz_id});
+  %meta=(artist=>$remote->{artist},title=>$remote->{title},version=>$remote->{version},mbid=>$remote->{recording_mbid}||$remote->{musicbrainz_id},release=>$remote->{album},duration=>$remote->{duration},tracknumber=>$remote->{tracknum});
  } else {
-  %meta=(artist=>$track->artist ? $track->artist->name : '',title=>$track->title,mbid=>$track->musicbrainz_id,version=>'');
+  %meta=(artist=>$track->artist ? $track->artist->name : '',title=>$track->title,mbid=>$track->musicbrainz_id,version=>'',release=>$track->album ? $track->album->title : '',duration=>$track->secs,tracknumber=>$track->tracknum);
  }
- return {map {$_=>defined($meta{$_}) ? "$meta{$_}" : ''} qw(artist title version mbid)};
+ return {map {$_=>defined($meta{$_}) ? "$meta{$_}" : ''} qw(artist title version mbid release duration tracknumber)};
 }
 sub trackInfo {
  my ($client,$url)=@_;
@@ -40,7 +40,13 @@ sub trackInfo {
   my $reply=sub { my($result)=@_; $cb->({items=>[{name=>$result->{ok}?'ListenBrainz Love verified':('ListenBrainz Love failed: '.($result->{error}||'Unknown error')),type=>'text'}]}) };
   my $snapshot=eval {capture($c)};
   return $reply->({ok=>0,error=>'No reliable current artist/title metadata'}) unless $snapshot;
-  my $core=Plugins::ListenBrainzLove::Core->new(transport=>sub { require Plugins::ListenBrainzLove::Transport; Plugins::ListenBrainzLove::Transport::request(@_) });
+  my $clicked_url=$c->playingSong->currentTrack->url;
+  my $core=Plugins::ListenBrainzLove::Core->new(allow_playing_now=>1,is_current=>sub {
+   my ($clicked)=@_; my $fresh=eval {capture($c)};
+   return 0 unless $fresh && $c->playingSong->currentTrack->url eq $clicked_url;
+   for my $field (qw(artist title version mbid release duration tracknumber)) { return 0 if ($fresh->{$field}||'') ne ($clicked->{$field}||'') }
+   return 1;
+  },transport=>sub { require Plugins::ListenBrainzLove::Transport; Plugins::ListenBrainzLove::Transport::request(@_) });
   $core->love($snapshot,$prefs->get('token'),$prefs->get('username'),$reply);
  }}];
 }

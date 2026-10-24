@@ -19,6 +19,12 @@ ListenBrainz authoritative documentation:
 
 Documentation and source review are not live API write verification. No real token was used or copied into this project.
 
+## On-demand playing-now identity (0.2.0)
+
+The [official submission format](https://listenbrainz.readthedocs.io/en/latest/users/json.html) documents `playing_now` as temporary state, without `listened_at`; permanent history requires a separate `single` or `import` submission. `POST /1/submit-listens?return_msid=true` returns a recording MSID for feedback before a completed listen exists. This behavior was also checked against `submit_listen` in [the upstream API implementation](https://github.com/metabrainz/listenbrainz-server/blob/master/listenbrainz/webserver/views/api.py) on 2026-10-24.
+
+This plugin enables that fallback only inside its explicit Love action, rechecks current playback before sending it, and rejects completed-listen types and timestamps at the transport boundary. Existing exact identities retain priority. `playing_now` may also expose an existing MSID in `track_metadata.additional_info.recording_msid`.
+
 ## Distribution repository format
 
 The publication preparation reviewed the real [LyrionJS repo.xml](https://raw.githubusercontent.com/JameZUK/LyrionJS/main/repo.xml): `extensions/details/title` and `extensions/plugins/plugin`, attributes `name`, `version`, `minTarget`, `maxTarget`, and child elements `title`, `desc`, `creator`, `category`, `link`, `url`, `sha`. That example is on a mutable branch; it is a format example, not a pinned dependency.
