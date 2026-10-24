@@ -70,7 +70,7 @@ ET.SubElement(entry, 'title', lang='EN').text = 'ListenBrainz Love'
 ET.SubElement(entry, 'desc', lang='EN').text = 'Explicit ListenBrainz Love with exact recording verification; no scrobbling.'
 for tag, text in (('creator', 'ListenBrainzLove contributors'), ('category', 'tools'),
                   ('link', repository),
-                  ('url', f'{repository}/releases/download/v{version}/{plugin.name}'),
+                  ('url', f'https://raw.githubusercontent.com/vysmaty/lyrion-listenbrainz-love/dist-v{version}/dist/{plugin.name}'),
                   ('sha', sha1)):
     ET.SubElement(entry, tag).text = text
 ET.indent(extensions, space='  ')
