@@ -46,28 +46,39 @@ sub _metadata {
  die 'No player' unless $client;
  my $song=$client->playingSong or die 'No song';
  my $playing_track=$song->currentTrack or die 'No track';
+ return _trackMetadata($client,$playing_track,$sources);
+}
+sub _trackMetadata {
+ my ($client,$selected,$sources)=@_;
+ die 'No selected track' unless $client && $selected && $selected->url;
+ my $playing_track=eval {$client->playingSong->currentTrack};
+ my $same_current=$playing_track && $playing_track->url eq $selected->url;
  # AudioScrobbler resolves the canonical schema object by URL. A playing
  # Song can hold a different RemoteTrack with a different ID and metadata.
- my $track=Slim::Schema->objectForUrl({url=>$playing_track->url}) || $playing_track;
+ my $canonical=Slim::Schema->objectForUrl({url=>$selected->url});
+ my $track=$canonical && $canonical->url eq $selected->url ? $canonical : $selected;
  my $object_mbid=$track->musicbrainz_id || '';
- my $playing_mbid=$playing_track->musicbrainz_id || '';
+ my $playing_mbid=$same_current ? ($playing_track->musicbrainz_id || '') : '';
  if ($sources) {
   $sources->{object_mbid}=$object_mbid;
   $sources->{playing_mbid}=$playing_mbid;
   $sources->{object_track_id}=''.$track->id;
-  $sources->{playing_track_id}=''.$playing_track->id;
+  $sources->{playing_track_id}=$same_current ? ''.$playing_track->id : '';
  }
  my %meta;
  if ($track->remote) {
   my $handler=Slim::Player::ProtocolHandlers->handlerForURL($track->url);
   die 'No live metadata provider' unless $handler && $handler->can('getMetadataFor');
-  my $remote=$handler->getMetadataFor($client,$track->url,'forceCurrent');
+  # forceCurrent can make a provider return the active stream's metadata.
+  # An inactive selection must be queried by its own URL instead.
+  my $remote=$same_current && $client->isPlaying ? $handler->getMetadataFor($client,$track->url,'forceCurrent') : $handler->getMetadataFor($client,$track->url);
   die 'No live track metadata' unless ref($remote) eq 'HASH';
+  die 'Selected stream has no reliable fixed-track metadata' unless ($same_current && $client->isPlaying) || ($track->secs || 0)>0;
   my $provider_mbid=$remote->{recording_mbid}||$remote->{musicbrainz_id}||'';
   $sources->{provider_mbid}=$provider_mbid if $sources;
   # AudioScrobbler reads the object's MBID even for remote tracks, and uses
   # its duration when the protocol handler does not supply one.
-  %meta=(artist=>$remote->{artist},title=>$remote->{title},version=>$remote->{version},mbid=>$provider_mbid||$object_mbid||$playing_mbid,release=>$remote->{album},duration=>$remote->{duration}||$track->secs||$playing_track->secs,tracknumber=>$remote->{tracknum},isrc=>$remote->{isrc});
+  %meta=(artist=>$remote->{artist},title=>$remote->{title},version=>$remote->{version},mbid=>$provider_mbid||$object_mbid||$playing_mbid,release=>$remote->{album},duration=>$remote->{duration}||$track->secs||($same_current?$playing_track->secs:0),tracknumber=>$remote->{tracknum},isrc=>$remote->{isrc});
  } else {
   $sources->{provider_mbid}='' if $sources;
   %meta=(artist=>$track->artist ? $track->artist->name : '',title=>$track->title,mbid=>$object_mbid,version=>'',release=>$track->album ? $track->album->title : '',duration=>$track->secs,tracknumber=>$track->tracknum,isrc=>($track->can('isrc')?$track->isrc:''));
@@ -111,82 +122,92 @@ sub selectedTrack {
  my ($request)=@_;
  my $selected=$request->getParam('selected_id');
  my $id=defined($selected) && !ref($selected) && $selected=~/\A(?:track_id:)?(-?\d+)\z/ ? $1 : undef;
- my $track=eval {$request->client->playingSong->currentTrack};
- my $selected_track=defined($id) && $track ? eval {defined($track->id) && $id eq ''.$track->id ? $track : Slim::Schema->find('Track',$id)} : undef;
- return $selected_track && $selected_track->url eq $track->url ? $id : undef;
+ return unless defined($id);
+ my $playing_track=eval {$request->client->playingSong->currentTrack};
+ my $selected_track=eval {$playing_track && defined($playing_track->id) && $id eq ''.$playing_track->id ? $playing_track : Slim::Schema->find('Track',$id)};
+ return $selected_track && defined($selected_track->id) && $id eq ''.$selected_track->id && $selected_track->url ? $selected_track : undef;
 }
 sub loveQuery {
  my ($request)=@_;
+ my $selected=selectedTrack($request);
  my $reply=sub {
   $request->addResult('count',1);
   my $result=shift;
   $request->addResultLoop('item_loop',0,'text',resultText($result));
   $request->addResultLoop('item_loop',0,'icon',iconFor($result));
-  $request->addResultLoop('item_loop',0,'type','text');
+  $request->addResultLoop('item_loop',0,'type',$selected?'link':'text');
+  $request->addResultLoop('item_loop',0,'actions',stateAction($selected->id)) if $selected;
   $request->setStatusDone;
  };
  my $client=$request->client;
- return $reply->({ok=>0,error=>'The selected track is not currently playing'}) unless defined(selectedTrack($request));
+ return $reply->({ok=>0,error=>'The selected track is unavailable; open its menu again'}) unless $selected;
  $request->setStatusProcessing;
- performLove($client,$reply);
+ performLove($client,$reply,$selected);
 }
+sub stateAction { return {go=>{cmd=>['listenbrainzlove','state'],params=>{selected_id=>'track_id:'.$_[0]}}} }
 sub coreFor {
  my ($client,$snapshot)=@_;
  my $clicked_url=$snapshot->{url};
- my $core=Plugins::ListenBrainzLove::Core->new(allow_playing_now=>1,is_current=>sub {
+ my $is_current=sub {
   my ($clicked)=@_; my $fresh=eval {capture($client)};
   return 0 unless $fresh && $client->playingSong->currentTrack->url eq $clicked_url;
   for my $field (qw(artist title version mbid release duration tracknumber isrc url)) { return 0 if ($fresh->{$field}||'') ne ($clicked->{$field}||'') }
   return 1;
- },cache=>\%identity_cache,transport=>sub { require Plugins::ListenBrainzLove::Transport; Plugins::ListenBrainzLove::Transport::request(@_) });
+ };
+ my $core=Plugins::ListenBrainzLove::Core->new(allow_playing_now=>$is_current->($snapshot)?1:0,is_current=>$is_current,cache=>\%identity_cache,transport=>sub { require Plugins::ListenBrainzLove::Transport; Plugins::ListenBrainzLove::Transport::request(@_) });
  return $core;
 }
 sub performLove {
- my ($client,$reply)=@_;
- my $snapshot=eval {capture($client)};
- return $reply->({ok=>0,error=>'No reliable current artist/title metadata'}) unless $snapshot;
+ my ($client,$reply,$selected)=@_;
+ my $snapshot=eval {$selected ? _trackMetadata($client,$selected) : capture($client)};
+ return $reply->({ok=>0,error=>'No reliable selected-track metadata; refresh after the provider loads it'}) unless $snapshot;
  my $player=eval {$client->id} || "$client";
  return $reply->({ok=>0,error=>'Love is already being verified; wait for the result'}) if $pending{$player};
  $pending{$player}=1;
  coreFor($client,$snapshot)->love($snapshot,$prefs->get('token'),$prefs->get('username'),sub {delete $pending{$player}; $reply->(shift)});
 }
 sub performStatus {
- my ($client,$reply)=@_;
- my $snapshot=eval {_metadata($client)};
- return $reply->({ok=>0,error=>'No reliable current artist/title metadata'}) unless $snapshot;
+ my ($client,$reply,$selected)=@_;
+ my $snapshot=eval {$selected ? _trackMetadata($client,$selected) : _metadata($client)};
+ return $reply->({ok=>0,error=>'No reliable selected-track metadata; refresh after the provider loads it'}) unless $snapshot;
  coreFor($client,$snapshot)->status($snapshot,$prefs->get('token'),$prefs->get('username'),$reply);
 }
 sub stateQuery {
  my ($request)=@_;
- my $id=selectedTrack($request);
- unless (defined $id) {
+ my $selected=selectedTrack($request);
+ unless ($selected) {
   $request->addResult('count',1);
-  $request->addResultLoop('item_loop',0,'text','ListenBrainz: The selected track is not currently playing');
+  $request->addResultLoop('item_loop',0,'text','ListenBrainz: The selected track is unavailable; open its menu again');
   $request->addResultLoop('item_loop',0,'type','text');
   return $request->setStatusDone;
  }
  $request->setStatusProcessing;
+ my $id=$selected->id;
  performStatus($request->client,sub {
   my ($result)=@_;
-  my @items=({text=>stateText($result),type=>'text',icon=>iconFor($result)});
-  if ($request->client->isPlaying && (!$result->{ok} || $result->{score}!=1)) {
-   push @items,{text=>label('Mark currently playing as Love','Označit právě hrající skladbu jako Love'),type=>'link',icon=>'/plugins/ListenBrainzLove/html/images/heart-outline.svg',actions=>{go=>{cmd=>['listenbrainzlove','love'],params=>{selected_id=>"track_id:$id"}}}};
+  my @items=({text=>stateText($result),type=>'link',icon=>iconFor($result),actions=>stateAction($id)});
+  if (!$result->{ok} || $result->{score}!=1) {
+   push @items,{text=>label('Mark selected track as Love','Označit vybranou skladbu jako Love'),type=>'link',icon=>'/plugins/ListenBrainzLove/html/images/heart-outline.svg',actions=>{go=>{cmd=>['listenbrainzlove','love'],params=>{selected_id=>"track_id:$id"}}}};
   }
-  push @items,{text=>label('Refresh Love status','Obnovit stav Love'),type=>'link',actions=>{go=>{cmd=>['listenbrainzlove','state'],params=>{selected_id=>"track_id:$id"}}}};
+  # Material hides all images when a short list has only one distinct image.
+  # A real refresh icon keeps the state heart visible in every state.
+  push @items,{text=>label('Refresh Love status','Obnovit stav Love'),type=>'link',icon=>'/plugins/ListenBrainzLove/html/images/refresh.svg',actions=>stateAction($id)};
   $request->addResult('count',scalar @items);
   for my $index (0..$#items) {$request->addResultLoop('item_loop',$index,$_,$items[$index]{$_}) for sort keys %{$items[$index]}}
   $request->setStatusDone;
- });
+ },$selected);
 }
 sub trackInfo {
- my ($client,$url)=@_;
- return unless $client && $client->isPlaying && $client->playingSong && $client->playingSong->currentTrack->url eq $url;
- return [{name=>'ListenBrainz: Love currently playing',type=>'link',url=>sub {
+ my ($client,$url,$selected)=@_;
+ return unless $client && $url;
+ $selected ||= Slim::Schema->objectForUrl({url=>$url});
+ return unless $selected && $selected->url eq $url;
+ return [{name=>'ListenBrainz: Love selected track',type=>'link',url=>sub {
   my ($c,$cb)=@_;
-  performLove($c,sub {my $r=shift;$cb->({items=>[{name=>resultText($r),type=>'text',icon=>iconFor($r)}]})});
+  performLove($c,sub {my $r=shift;$cb->({items=>[{name=>resultText($r),type=>'text',icon=>iconFor($r)}]})},$selected);
  }},{name=>'ListenBrainz: Love status',type=>'link',url=>sub {
   my ($c,$cb)=@_;
-  performStatus($c,sub {my $r=shift;$cb->({items=>[{name=>stateText($r),type=>'text',icon=>iconFor($r)}]})});
+  performStatus($c,sub {my $r=shift;$cb->({items=>[{name=>stateText($r),type=>'text',icon=>iconFor($r)}]})},$selected);
  }}];
 }
 1;

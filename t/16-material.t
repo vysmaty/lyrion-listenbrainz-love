@@ -62,7 +62,8 @@ if ($postinit && $query && $diagnostic) {
   is($request->{status},'done','verified callback completes the request');
   is($request->{result}{item_loop}[0]{text},'ListenBrainz Love verified','result is a visible native list item');
   is($request->{result}{count},1,'single result is bounded');
-  is($request->{result}{item_loop}[0]{type},'text','result cannot submit again as an action');
+  is($request->{result}{item_loop}[0]{type},'link','result displays its heart in a native image-capable row');
+  is_deeply($request->{result}{item_loop}[0]{actions}{go},{cmd=>['listenbrainzlove','state'],params=>{selected_id=>'track_id:42'}},'clicking a result reads state rather than submitting again');
   $request=MaterialRequest->new('42'); $query->($request);
   is($calls,2,'now-playing numeric item ID is also accepted');
   $pending->({ok=>0,error=>'Provider request failed'});
@@ -70,14 +71,15 @@ if ($postinit && $query && $diagnostic) {
   for my $selected ('track_id:99','','track_id:42x','artist_id:42') {
    $request=MaterialRequest->new($selected); $query->($request);
    is($calls,2,'wrong or missing selection never loves another track');
-   like($request->{result}{item_loop}[0]{text},qr/selected track is not currently playing/i,'selection failure explains the target');
+   like($request->{result}{item_loop}[0]{text},qr/selected track is unavailable/i,'selection failure explains the target');
   }
   local $MaterialClient::playing=0;
   $request=MaterialRequest->new('42'); $query->($request);
-  is($calls,2,'stopped playback cannot submit from Material');
-  like($request->{result}{item_loop}[0]{text},qr/failed/,'stopped playback has a readable error');
+  is($calls,3,'stopped playback can Love its selected fixed recording');
+  $pending->({ok=>1});
+  like($request->{result}{item_loop}[0]{text},qr/Love verified/,'stopped selection has a verified result');
   $request=MaterialRequest->new('42'); $diagnostic->($request);
-  is($calls,2,'diagnostic never invokes Love even while stopped');
+  is($calls,3,'diagnostic never invokes Love even while stopped');
   is($request->{result}{object_mbid},MaterialTrack->musicbrainz_id,'diagnostic identifies the AudioScrobbler object source');
   is($request->{result}{provider_mbid},'','diagnostic distinguishes absent provider MBID');
   is($request->{result}{mbid},MaterialTrack->musicbrainz_id,'diagnostic shows effective ID');
@@ -88,11 +90,11 @@ if ($postinit && $query && $diagnostic) {
   {
    local $MaterialClient::playing=1;
    $request=MaterialRequest->new('track_id:4200'); $query->($request);
-   is($calls,3,'library and playing-song IDs for the same URL are accepted');
+   is($calls,4,'library and playing-song IDs for the same URL are accepted');
    $pending->({ok=>1});
    is($request->{result}{item_loop}[0]{text},'ListenBrainz Love verified','alias reaches the common verified Love path');
    $request=MaterialRequest->new('track_id:99'); $query->($request);
-   is($calls,3,'a resolved different URL still cannot love the current track');
+   is($calls,4,'an invalid ID returned by the schema cannot love a different track');
   }
  }
 }
@@ -116,7 +118,8 @@ if ($state) {
   is($request->{status},'done','read completes the native list');
   is($request->{result}{count},$count,'state plus explicit action/refresh are bounded');
   like($request->{result}{item_loop}[0]{icon},qr/heart-$icon\.svg$/,'icon represents the verified state');
-  is($request->{result}{item_loop}[0]{type},'text','state row is not a hidden write action');
+  is($request->{result}{item_loop}[0]{type},'link','state row supports its heart image');
+  is_deeply($request->{result}{item_loop}[0]{actions}{go}{cmd},['listenbrainzlove','state'],'clicking a state row remains read-only');
   is($request->{result}{item_loop}[-1]{type},'link','refresh is an explicit browse link, not a text command without list arguments');
   if ($count==3) {
    is($request->{result}{item_loop}[1]{type},'link','Love also uses explicit browse link semantics');
@@ -127,7 +130,7 @@ if ($state) {
  {
   local $MaterialClient::playing=0;
   my $request=MaterialRequest->new('42'); $state->($request);$callback->({ok=>1,score=>0});
-  is($request->{result}{count},2,'paused/stopped player can read state but cannot submit Love');
+  is($request->{result}{count},3,'paused/stopped player can read state and explicitly Love its selected recording');
  }
  my $before=$reads;
  my $request=MaterialRequest->new('99'); $state->($request);

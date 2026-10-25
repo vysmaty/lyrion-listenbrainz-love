@@ -1,22 +1,22 @@
-# ListenBrainzLove 0.4.1
+# ListenBrainzLove 0.5.0
 
-Samostatný Perl plugin pro Lyrion Music Server 9.1.x. Ručně označí právě hrající nahrávku jako **Love** na ListenBrainz a ověří uložený stav. Dokončené poslechy dál odesílá stávající scrobbler.
+Samostatný Perl plugin pro Lyrion Music Server 9.1.x. Ručně označí vybranou nahrávku jako **Love** na ListenBrainz a ověří uložený stav. Skladba nemusí právě hrát. Dokončené poslechy dál odesílá stávající scrobbler.
 
-Verze 0.4.1 přidává dokumentovaný metadata lookup, přednost dostupného recording MBID před MSID, cílené ověření konkrétní nahrávky a čtení stavu srdíčka. ISRC se zachytí, pokud ho poskytovatel vrací; samostatný ISRC resolver tato verze nezavádí.
+Verze 0.5.0 přidává Love pro nepřehrávanou skladbu z fronty či knihovny a opravuje viditelnost srdíčka v Material Skin. Zachovává dokumentovaný metadata lookup, přednost dostupného recording MBID před MSID a cílené ověření konkrétní nahrávky. ISRC se zachytí, pokud ho poskytovatel vrací; samostatný ISRC resolver tato verze nezavádí.
 
 ## Použití
 
-V Material Skin 6.4.6+ otevřít menu právě hrající skladby nebo její položky ve frontě a zvolit **ListenBrainz Love**. Tato položka pouze načte stav. Nativní nabídka zobrazí plné srdíčko pro potvrzené Love, obrys pro známý neoznačený stav nebo otazník, pokud stav nelze zjistit. U MSID upozorní, že propojení s MusicBrainz není potvrzené.
+V Material Skin 6.4.6+ otevřít menu vybrané skladby ve frontě nebo knihovně a zvolit **ListenBrainz Love**. Tato položka pouze načte stav. Nativní nabídka zobrazí plné srdíčko pro potvrzené Love, obrys pro známý neoznačený stav nebo otazník, pokud stav nelze zjistit. U MSID upozorní, že propojení s MusicBrainz není potvrzené.
 
-**Označit právě hrající skladbu jako Love** je samostatná ruční akce. **Obnovit stav Love** pouze čte. Při neověřeném výsledku zápisu nabídka upozorní, že feedback už mohl být uložen. Otevření nabídky nic nezapisuje.
+**Označit vybranou skladbu jako Love** je samostatná ruční akce. **Obnovit stav Love** i kliknutí na stavové srdíčko pouze čte. Při neověřeném výsledku zápisu nabídka upozorní, že feedback už mohl být uložen. Otevření nabídky nic nezapisuje.
 
 Ikona vstupní položky kontextového menu je statická; skutečný stav ukazuje až nabídka pluginu. Hvězdičky Lyrionu zůstávají nezávislé. Plugin nemění JavaScript Material Skin ani uživatelův `custom.js`. Po aktualizaci obnovit stránku Material Skin.
 
-Ve standardních informacích o skladbě zůstávají přímá akce **ListenBrainz: Love currently playing** a odkaz **ListenBrainz: Love status**. Love funguje jen pro právě hrající skladbu. Při zastaveném přehrávání lze stav pouze přečíst. Unlove ani automatická migrace starších oblíbených nejsou součástí této verze.
+Ve standardních informacích o skladbě jsou přímá akce **ListenBrainz: Love selected track** a odkaz **ListenBrainz: Love status**. Fungují také při zastavení či prázdné frontě, pokud Lyrion zná vybranou skladbu a její spolehlivá metadata. U vzdálené nepřehrávané položky se vyžaduje známá kladná délka, aby se nepoužila neurčitá rozhlasová stanice jako konkrétní nahrávka. Po načtení metadat poskytovatele lze stav obnovit. Neznámé/neplatné ID nikdy neoznačí místo výběru právě hrající skladbu. Unlove ani automatická migrace starších oblíbených nejsou součástí této verze.
 
 ## Jak se získá identita
 
-1. Zachytit neměnný snímek skladby v okamžiku kliku. Použít kanonický objekt podle URL jako AudioScrobbler a čerstvá metadata poskytovatele.
+1. Zachytit neměnný snímek vybrané skladby v okamžiku kliku. Použít její kanonický objekt podle URL jako AudioScrobbler a metadata poskytovatele pro tutéž URL. Příznak `forceCurrent` a MBID aktuálního přehrávání se nepřebírají pro jinou skladbu.
 2. Upřednostnit důvěryhodné zdrojové recording MBID nebo dříve přijatou cache stejného zdroje a metadat.
 3. Jinak přečíst ListenBrainz playing-now a případně nedávné poslechy. Samotné MSID v playing-now nezastaví hledání dostupného MBID. Historie je omezená na 300 sekund a méně než 100 položek. Sto položek znamená potenciálně oříznutý výsledek a bezpečnou chybu.
 4. Pokud MBID chybí, zavolat autentizovaný `GET /1/metadata/lookup/` s `artist_name`, `recording_name` a případně `release_name`. Samostatná verze skladby je součástí názvu pro lookup.
@@ -28,7 +28,7 @@ Cache obsahuje jen přijatá MBID: nejvýše 128 položek na hodinu, klíč zahr
 
 ## Fallback přes MSID
 
-Pouze prázdná odpověď lookupu znamená potvrzené nenalezení. Pak lze použít již existující odpovídající MSID. Pokud chybí i to, výhradně ruční Love znovu ověří stejné aktivní přehrávání a odešle jeden skutečný `playing_now?return_msid=true`, bez timestampu. Na vrácené MSID uloží a ověří Love. Nevzniká dokončený scrobble. Čtení stavu tuto cestu nikdy nespouští.
+Pouze prázdná odpověď lookupu znamená potvrzené nenalezení. Pak lze použít již existující odpovídající MSID. Pokud chybí i to, výhradně ruční Love skutečně přehrávané skladby znovu ověří stejné aktivní přehrávání a odešle jeden skutečný `playing_now?return_msid=true`, bez timestampu. Na vrácené MSID uloží a ověří Love. Nevzniká dokončený scrobble. Nepřehrávaná skladba bez dohledatelné identity skončí bez zápisu; nepředstírá přehrávání. Čtení stavu tuto cestu nikdy nespouští.
 
 Neúplná odpověď, jiné jméno/verze, síťová chyba nebo vyčerpaný limit nejsou nenalezením a nesmí tiše změnit identitu. MSID úspěch se neoznačuje jako potvrzené MusicBrainz propojení.
 
@@ -40,9 +40,9 @@ Do **Settings → Plugins → Additional repositories** přidat:
 
 Použít změny, vybrat **ListenBrainz Love** a nainstalovat/restartovat podle výzvy. V nastavení pluginu zadat ListenBrainz username a token. Prázdné pole tokenu při uložení zachová stávající hodnotu. Ověřuje se platnost tokenu i vlastník účtu.
 
-Minimální verze je deklarovaná 9.1.0; integrační ověření cílí na Lyrion 9.1.1. Veřejný projekt: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), vydání `v0.4.1`.
+Minimální verze je deklarovaná 9.1.0; integrační ověření cílí na Lyrion 9.1.1. Veřejný projekt: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), vydání `v0.5.0`.
 
-Repozitář používá přesně sestavený standardní plugin ZIP s `install.xml` v kořeni a SHA-1 celých bajtů ZIPu. `repo.xml` odkazuje na distribuční tag `dist-v0.4.1`; samostatný SHA-256 je v manifestu. GitHub source ZIP není instalační balíček.
+Repozitář používá přesně sestavený standardní plugin ZIP s `install.xml` v kořeni a SHA-1 celých bajtů ZIPu. `repo.xml` odkazuje na distribuční tag `dist-v0.5.0`; samostatný SHA-256 je v manifestu. GitHub source ZIP není instalační balíček.
 
 ## Bezpečnost a diagnostika
 
@@ -54,9 +54,9 @@ Token je uložený v běžných lokálních LMS preferences, nikoli šifrovaný;
 
 ## Ověření a build
 
-`prove -v t`: **19 souborů, 382 assertions, PASS**. Regrese zahrnují přednost MBID před MSID, lookup před prvním scroblem, české znaky, jiné verze, bezpečné limity, cache, cílený readback, neověřený POST, read-only stavy, výběr skladby a dva skutečné lokální TCP/HTTP fake servery. Tyto testy nepoužívají skutečný účet ani skutečné Like zápisy.
+`prove -v t`: **20 souborů, 415 assertions, PASS**. Regrese zahrnují přednost MBID před MSID, lookup před prvním scroblem, české znaky, jiné verze, bezpečné limity, cache, cílený readback, neověřený POST, read-only stavy, nepřehrávaný výběr, zastavení/prázdnou frontu, zákaz falešného playing-now a dva skutečné lokální TCP/HTTP fake servery. Tyto testy nepoužívají skutečný účet ani skutečné Like zápisy.
 
-`python tools/build.py` spustí testy a vytvoří `dist/ListenBrainzLove-0.4.1.zip`, source ZIP, manifesty, `repo.xml` a čistou kopii publikovatelných zdrojů v `.publication/`. Zdrojový balíček neobsahuje lokální diagnostické poznámky, listening-history evidence ani credentials. Build nic nepublikuje ani nenasazuje.
+`python tools/build.py` spustí testy a vytvoří `dist/ListenBrainzLove-0.5.0.zip`, source ZIP, manifesty, `repo.xml` a čistou kopii publikovatelných zdrojů v `.publication/`. Zdrojový balíček neobsahuje lokální diagnostické poznámky, listening-history evidence ani credentials. Build nic nepublikuje ani nenasazuje.
 
 Testovací Perl nemá IO::Socket::SSL: testy transportu používají facades a nevydávají se za reálný TLS handshake. Před vydáním je potřeba doplnit ověření v cílovém LMS a Material Skin; skutečný feedback lze ověřit ručním kliknutím uživatele.
 

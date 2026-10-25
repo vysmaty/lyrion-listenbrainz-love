@@ -65,14 +65,14 @@ if ($loaded) {
  is($returned->{items}[0]{type},'text','failure remains a visible, non-actionable menu item');
  ok(!$returned->{items}[0]{showBriefly},'XMLBrowser must not consume the failure as a transient popup');
  my $love_calls=0;
- { no warnings qw(redefine once); local *Plugins::ListenBrainzLove::Core::love=sub { $love_calls++ };
+ { no warnings qw(redefine once); local *Plugins::ListenBrainzLove::Core::love=sub { $love_calls++; $_[4]->({ok=>1}) };
  local $FixtureClient::playing=0;
  ok(!$guard->($captured),'stopped playback fails the notification guard');
  $menu->[0]{url}->($client,sub{$returned=shift},{});
  }
- is($love_calls,0,'stopped playback never sends feedback from an old menu');
- like($returned->{items}[0]{name},qr/failed: No reliable current artist\/title metadata/,'stopped playback reports the capture failure');
- is($returned->{items}[0]{type},'text','capture failure remains visible');
+ is($love_calls,1,'selected recording may be loved while playback is stopped');
+ like($returned->{items}[0]{name},qr/Love verified/,'stopped selection uses its own metadata');
+ is($returned->{items}[0]{type},'text','TrackInfo result remains visible');
  Plugins::ListenBrainzLove::Plugin->shutdownPlugin;
  ok(!$Slim::Menu::TrackInfo::provider{listenbrainzLove},'provider cleanup');
 }

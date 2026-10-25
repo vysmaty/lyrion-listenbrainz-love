@@ -53,6 +53,14 @@ Material's registered context entry is a static navigation icon. It opens a nati
 
 The Material 6.4.14 renderer changes an untyped go action without an image into a text row. Its `doTextClick` uses a plain command for plugin verbs and omits list index/count arguments, so a tagged selection can be consumed as a positional argument. Version 0.4.1 sets `type=link` explicitly on both native Love and Refresh actions. This was isolated during live read-only testing, reproduced in regression assertions, and corrected without removing the selected-track guard.
 
+## Non-playing selections and visible state (0.5.0)
+
+The [feedback format](https://listenbrainz.readthedocs.io/en/latest/users/feedback-json.html) accepts recording MBID and score independently of any listen. Version 0.5.0 resolves the selected numeric Track ID, captures that track's URL and metadata, and allows verified feedback while another track plays, playback is stopped or the queue is empty. It never substitutes the current track for an invalid ID. TrackInfo already supplies its selected URL/object to providers; the same capture path now serves its selected-track actions.
+
+Only matching current playback may supply playing-song MBID or forceCurrent. Inactive remote selections need positive object duration and complete provider artist/title metadata, avoiding indefinite stream station records. Playing-now fallback is enabled only for a snapshot matching actual active playback, then rechecked immediately before submission. No-match on a non-playing selection cannot manufacture a listen or now-playing notification.
+
+Live read-only verification also exposed Material's short-list optimization: if a list contains only one distinct image, browse-resp.js clears all images. A distinct refresh icon preserves the state heart for both loved and not-loved lists. Explicit link rows route clicks on state/results to the read-only state command. No Material source files or ratings are modified.
+
 The publication preparation reviewed the real [LyrionJS repo.xml](https://raw.githubusercontent.com/JameZUK/LyrionJS/main/repo.xml): `extensions/details/title` and `extensions/plugins/plugin`, attributes `name`, `version`, `minTarget`, `maxTarget`, and child elements `title`, `desc`, `creator`, `category`, `link`, `url`, `sha`. That example is on a mutable branch; it is a format example, not a pinned dependency.
 
 The pinned LMS [PluginDownloader.pm](https://github.com/LMS-Community/slimserver/blob/1ceeaf1d601134f765b5a3e65113726284eaae6d/Slim/Utils/PluginDownloader.pm) imports `Digest::SHA1`; `_getDigest` opens the downloaded ZIP in binary mode and returns its SHA-1 hex digest. `_installDownload` compares that value with the repository's `sha`. Thus `repo.xml` uses **SHA-1 of the complete plugin ZIP**, not SHA-256 or a hash of source files. A separate SHA-256 manifest is provided for independent verification.
