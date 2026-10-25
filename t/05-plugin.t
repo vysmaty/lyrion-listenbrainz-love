@@ -12,6 +12,10 @@ BEGIN {
  package FixtureHandler; our $meta={artist=>'Artist',title=>'Before',version=>'Live',album=>'Album',duration=>193,tracknum=>9,musicbrainz_id=>'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'}; sub getMetadataFor { $meta }
  package FixtureTrack; our $mbid=''; sub url {'https://station.invalid/stream'} sub remote {1} sub musicbrainz_id {$mbid} sub secs {183} sub id {42}
  package FixtureCanonicalTrack; our @ISA=('FixtureTrack'); sub musicbrainz_id {'22222222-3333-4444-8555-666666666666'} sub secs {198}
+ package FixtureArtist; sub new {bless {name=>$_[1]},$_[0]} sub name {$_[0]{name}}
+ package FixtureAlbum; sub title {'LUX'}
+ package FixtureLocalTrack; our @ISA=('FixtureTrack'); sub remote {0} sub title {'Memória'} sub artist {FixtureArtist->new('ROSALÍA')} sub album {bless {},'FixtureAlbum'} sub tracknum {14}
+ sub artists {map {FixtureArtist->new($_)} ('Carminho','ROSALÍA')}
  package FixtureSong; sub currentTrack {bless {},'FixtureTrack'}
  package FixtureClient; our $playing=1; sub isPlaying {$playing} sub playingSong {bless {},'FixtureSong'}
 }
@@ -21,6 +25,20 @@ if ($loaded) {
  Plugins::ListenBrainzLove::Plugin->initPlugin;
  ok($Slim::Menu::TrackInfo::provider{listenbrainzLove},'independent TrackInfo provider');
  my $client=bless {},'FixtureClient';
+ {
+  local $FixtureHandler::meta={artist=>'ROSALÍA',title=>'Memória',album=>'LUX',artists=>[
+   {name=>'ROSALÍA',type=>'MAIN'},{name=>'Carminho',type=>'FEATURED'},
+   {name=>'ROSALÍA',type=>'MAIN'},{name=>'Other Composer',type=>'COMPOSER'},
+  ]};
+  my $snapshot=Plugins::ListenBrainzLove::Plugin::capture($client);
+  is($snapshot->{artist},'ROSALÍA & Carminho','TIDAL capture retains all credited performers, deduplicating and excluding composers');
+  ok(Plugins::ListenBrainzLove::Identity::same_recording($snapshot,'ROSALÍA & Carminho','Memória'),'real Memória lookup credit matches the complete captured artist credit');
+  ok(!Plugins::ListenBrainzLove::Identity::same_recording($snapshot,'ROSALÍA','Memória'),'guest identity is not dropped to make a lookup pass');
+  ok(!Plugins::ListenBrainzLove::Identity::same_recording($snapshot,'ROSALÍA & Carminho','Memória (Live)'),'complete credits do not weaken version checks');
+  local $Slim::Schema::canonical=bless {},'FixtureLocalTrack';
+  $snapshot=Plugins::ListenBrainzLove::Plugin::capture($client);
+  is($snapshot->{artist},'ROSALÍA & Carminho','imported/local track includes ARTIST and TRACKARTIST with primary artist first');
+ }
  {
   local $Slim::Schema::canonical=bless {},'FixtureCanonicalTrack';
   local $FixtureHandler::meta={artist=>'Artist',title=>'Song'};

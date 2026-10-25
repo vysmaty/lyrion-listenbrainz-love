@@ -48,6 +48,17 @@ sub _metadata {
  my $playing_track=$song->currentTrack or die 'No track';
  return _trackMetadata($client,$playing_track,$sources);
 }
+sub artistCredit {
+ my ($primary,@performers)=@_;
+ return $primary unless Plugins::ListenBrainzLove::Identity::text($primary);
+ my (%seen,@credit);
+ for my $name ($primary,@performers) {
+  next unless Plugins::ListenBrainzLove::Identity::text($name);
+  my $key=Plugins::ListenBrainzLove::Identity::normal($name);
+  push @credit,$name unless $seen{$key}++;
+ }
+ return join(' & ',@credit);
+}
 sub _trackMetadata {
  my ($client,$selected,$sources)=@_;
  die 'No selected track' unless $client && $selected && $selected->url;
@@ -75,13 +86,20 @@ sub _trackMetadata {
   die 'No live track metadata' unless ref($remote) eq 'HASH';
   die 'Selected stream has no reliable fixed-track metadata' unless ($same_current && $client->isPlaying) || ($track->secs || 0)>0;
   my $provider_mbid=$remote->{recording_mbid}||$remote->{musicbrainz_id}||'';
+  # TIDAL's scalar artist contains only the primary artist. Its artists
+  # collection retains MAIN/FEATURED performers, including guests that
+  # MusicBrainz includes in artist_credit_name. Do not add other roles.
+  my @performers=ref($remote->{artists}) eq 'ARRAY' ? map {$_->{name}} grep {
+   ref($_) eq 'HASH' && (($_->{type}||'')=~/\A(?:MAIN|FEATURED)\z/ || (!$_->{type} && $_->{main}))
+  } @{$remote->{artists}} : ();
   $sources->{provider_mbid}=$provider_mbid if $sources;
   # AudioScrobbler reads the object's MBID even for remote tracks, and uses
   # its duration when the protocol handler does not supply one.
-  %meta=(artist=>$remote->{artist},title=>$remote->{title},version=>$remote->{version},mbid=>$provider_mbid||$object_mbid||$playing_mbid,release=>$remote->{album},duration=>$remote->{duration}||$track->secs||($same_current?$playing_track->secs:0),tracknumber=>$remote->{tracknum},isrc=>$remote->{isrc});
+  %meta=(artist=>artistCredit($remote->{artist},@performers),title=>$remote->{title},version=>$remote->{version},mbid=>$provider_mbid||$object_mbid||$playing_mbid,release=>$remote->{album},duration=>$remote->{duration}||$track->secs||($same_current?$playing_track->secs:0),tracknumber=>$remote->{tracknum},isrc=>$remote->{isrc});
  } else {
   $sources->{provider_mbid}='' if $sources;
-  %meta=(artist=>$track->artist ? $track->artist->name : '',title=>$track->title,mbid=>$object_mbid,version=>'',release=>$track->album ? $track->album->title : '',duration=>$track->secs,tracknumber=>$track->tracknum,isrc=>($track->can('isrc')?$track->isrc:''));
+  my @performers=$track->can('artists') ? map {$_->name} $track->artists : ();
+  %meta=(artist=>artistCredit($track->artist ? $track->artist->name : '',@performers),title=>$track->title,mbid=>$object_mbid,version=>'',release=>$track->album ? $track->album->title : '',duration=>$track->secs,tracknumber=>$track->tracknum,isrc=>($track->can('isrc')?$track->isrc:''));
  }
  $meta{url}=$track->url;
  return {map {$_=>defined($meta{$_}) && !ref($meta{$_}) ? "$meta{$_}" : ''} qw(artist title version mbid release duration tracknumber isrc url)};

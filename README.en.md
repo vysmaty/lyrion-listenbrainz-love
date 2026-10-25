@@ -1,6 +1,8 @@
-# ListenBrainzLove 0.5.0
+# ListenBrainzLove 0.5.1
 
 Standalone Perl plugin for Lyrion Music Server 9.1.x. Explicitly Love a selected recording on ListenBrainz and verify the saved state, including a track that is not playing. Existing scrobblers continue to submit completed listens.
+
+Version 0.5.1 fixes incomplete performer credits that could incorrectly reject a matching recording.
 
 ## Use
 
@@ -10,7 +12,7 @@ The initial context-menu navigation icon is static. Actual state is shown inside
 
 ## Identity flow
 
-1. Capture immutable click-time metadata from the selected track's canonical URL object and its own provider metadata. Never use forceCurrent or the playing track's MBID for a different selection. Retain available ISRC; this release does not add an ISRC resolver.
+1. Capture immutable click-time metadata from the selected track's canonical URL object and its own provider metadata. Retain TIDAL MAIN/FEATURED and local ARTIST/TRACKARTIST names, excluding composer/conductor roles. Never use forceCurrent or the playing track's MBID for a different selection. Retain available ISRC; this release does not add an ISRC resolver.
 2. Prefer authoritative source recording MBID or an accepted cache entry for this exact source and metadata.
 3. Otherwise inspect matching playing-now and bounded recent listens (300 seconds, fewer than 100 rows). Playing-now MSID does not short-circuit available MBID resolution. Saturated or conflicting results fail closed.
 4. Resolve missing MBID using authenticated GET `/1/metadata/lookup/`, with `artist_name`, `recording_name` and optional `release_name`. A separate version is retained in the lookup title. Empty `{}` alone means no match; malformed data and network errors do not.
@@ -27,9 +29,9 @@ Add under **Settings → Plugins → Additional repositories**, apply, select **
 
 `https://raw.githubusercontent.com/vysmaty/lyrion-listenbrainz-love/main/repo.xml`
 
-Configure username/token in plugin settings. Empty token input preserves the saved token; validation checks ownership. Minimum declared LMS 9.1.0; integration targets 9.1.1. Repository: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), release `v0.5.0`.
+Configure username/token in plugin settings. Empty token input preserves the saved token; validation checks ownership. Minimum declared LMS 9.1.0; integration targets 9.1.1. Repository: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), release `v0.5.1`.
 
-The exact generated `ListenBrainzLove-0.5.0.zip` has `install.xml` at root. `repo.xml` points to the immutable `dist-v0.5.0` distribution tag and contains SHA-1 of complete ZIP bytes. SHA-256 is provided separately. GitHub's automatic source archive is not an installable plugin ZIP.
+The exact generated `ListenBrainzLove-0.5.1.zip` has `install.xml` at root. `repo.xml` points to the immutable `dist-v0.5.1` distribution tag and contains SHA-1 of complete ZIP bytes. SHA-256 is provided separately. GitHub's automatic source archive is not an installable plugin ZIP.
 
 ## Safety and diagnostics
 
@@ -41,7 +43,7 @@ Tokens are stored in ordinary unencrypted local LMS preferences; protect adminis
 
 ## Verification and build
 
-`prove -v t`: **20 files, 415 assertions, PASS**. Covers MBID/MSID priority, lookup before the first scrobble, Unicode, conflicting versions, bounds, cache, targeted readback, uncertain POST, native read-only state, non-playing selection, stopped/empty players and preventing fake playing-now, with two real local TCP/HTTP fake providers. No real account or feedback writes are used by these tests.
+`prove -v t`: **20 files, 424 assertions, PASS**. Covers MBID/MSID priority, lookup before the first scrobble, Unicode, conflicting versions, bounds, cache, targeted readback, uncertain POST, native read-only state, non-playing selection, stopped/empty players and preventing fake playing-now, with two real local TCP/HTTP fake providers. No real account or feedback writes are used by these tests.
 
 `python tools/build.py` runs tests and creates the plugin/source ZIPs, checksums, generated repo.xml and clean allowlisted `.publication/` sources. Local diagnostic notes and listening evidence are excluded. The build never publishes or deploys.
 

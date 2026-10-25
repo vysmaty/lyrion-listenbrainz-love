@@ -37,6 +37,13 @@ is($lookup->[1],'https://api.listenbrainz.org/1/metadata/lookup/?artist_name=Art
 is($lookup->[2]{Authorization},'Token fixture-only','lookup authenticates via header');
 ok(!grep($_->[1]=~/submit-listens/,@$calls),'successful MBID lookup never submits a listen');
 
+($r,$calls,$posted)=exercise(track=>{artist=>'ROSALÍA & Carminho',title=>'Memória',release=>'LUX',duration=>225,url=>'tidal://fixture.flc'},lookup=>{artist_credit_name=>'ROSALÍA & Carminho',recording_name=>'Memória',recording_mbid=>$mbid});
+ok($r->{ok},'Memória with complete source credits reaches verified MBID feedback');
+is($posted->{recording_mbid},$mbid,'complete artist credits preserve the exact lookup identity');
+ok(!grep($_->[1]=~/submit-listens/,@$calls),'Memória MBID feedback requires no playing-now or scrobble');
+($lookup)=grep($_->[1]=~/metadata\/lookup/,@$calls);
+like($lookup->[1],qr/artist_name=ROSAL%C3%8DA%20%26%20Carminho&recording_name=Mem%C3%B3ria&release_name=LUX/,'lookup includes both known artists with valid UTF-8 encoding');
+
 for my $bad (
  {recording_mbid=>$mbid,recording_name=>'Song (Live)',artist_credit_name=>'Artist'},
  {recording_mbid=>$mbid,recording_name=>'Song',artist_credit_name=>'Other'},
