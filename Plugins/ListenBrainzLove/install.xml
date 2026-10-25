@@ -3,7 +3,7 @@
  <id>ListenBrainzLove</id>
  <name>PLUGIN_LISTENBRAINZLOVE</name>
  <module>Plugins::ListenBrainzLove::Plugin</module>
- <version>0.4.0</version>
+ <version>0.4.1</version>
  <description>Explicit ListenBrainz Love with exact recording verification; no scrobbling.</description>
  <creator>ListenBrainzLove contributors</creator>
  <category>tools</category><defaultState>enabled</defaultState>

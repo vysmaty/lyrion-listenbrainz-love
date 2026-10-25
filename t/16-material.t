@@ -117,7 +117,9 @@ if ($state) {
   is($request->{result}{count},$count,'state plus explicit action/refresh are bounded');
   like($request->{result}{item_loop}[0]{icon},qr/heart-$icon\.svg$/,'icon represents the verified state');
   is($request->{result}{item_loop}[0]{type},'text','state row is not a hidden write action');
+  is($request->{result}{item_loop}[-1]{type},'link','refresh is an explicit browse link, not a text command without list arguments');
   if ($count==3) {
+   is($request->{result}{item_loop}[1]{type},'link','Love also uses explicit browse link semantics');
    is_deeply($request->{result}{item_loop}[1]{actions}{go},{cmd=>['listenbrainzlove','love'],params=>{selected_id=>'track_id:42'}},'Love is a separate explicit action bound to selection');
   }
   is($writes,0,'viewing state never invokes Love');

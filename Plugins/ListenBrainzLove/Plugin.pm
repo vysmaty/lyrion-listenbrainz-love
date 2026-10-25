@@ -170,9 +170,9 @@ sub stateQuery {
   my ($result)=@_;
   my @items=({text=>stateText($result),type=>'text',icon=>iconFor($result)});
   if ($request->client->isPlaying && (!$result->{ok} || $result->{score}!=1)) {
-   push @items,{text=>label('Mark currently playing as Love','Označit právě hrající skladbu jako Love'),icon=>'/plugins/ListenBrainzLove/html/images/heart-outline.svg',actions=>{go=>{cmd=>['listenbrainzlove','love'],params=>{selected_id=>"track_id:$id"}}}};
+   push @items,{text=>label('Mark currently playing as Love','Označit právě hrající skladbu jako Love'),type=>'link',icon=>'/plugins/ListenBrainzLove/html/images/heart-outline.svg',actions=>{go=>{cmd=>['listenbrainzlove','love'],params=>{selected_id=>"track_id:$id"}}}};
   }
-  push @items,{text=>label('Refresh Love status','Obnovit stav Love'),actions=>{go=>{cmd=>['listenbrainzlove','state'],params=>{selected_id=>"track_id:$id"}}}};
+  push @items,{text=>label('Refresh Love status','Obnovit stav Love'),type=>'link',actions=>{go=>{cmd=>['listenbrainzlove','state'],params=>{selected_id=>"track_id:$id"}}}};
   $request->addResult('count',scalar @items);
   for my $index (0..$#items) {$request->addResultLoop('item_loop',$index,$_,$items[$index]{$_}) for sort keys %{$items[$index]}}
   $request->setStatusDone;

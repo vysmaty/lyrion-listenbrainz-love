@@ -73,7 +73,7 @@ sub request {
   timeout=>8,maxRedirect=>0,
   options=>{SSL_verify_mode=>1,SSL_verifycn_scheme=>'http',SSL_verifycn_name=>'api.listenbrainz.org',SSL_hostname=>'api.listenbrainz.org'},
  });
- my %headers=(%$headers,Accept=>'application/json','User-Agent'=>'ListenBrainzLove/0.4.0 (+https://github.com/vysmaty/lyrion-listenbrainz-love)');
+ my %headers=(%$headers,Accept=>'application/json','User-Agent'=>'ListenBrainzLove/0.4.1 (+https://github.com/vysmaty/lyrion-listenbrainz-love)');
  my @h=map {($_,$headers{$_})} sort keys %headers;
  my $ok=eval {
   if ($method eq 'POST') {$http->post($url,@h,'Content-Type'=>'application/json',encode_json($body))}

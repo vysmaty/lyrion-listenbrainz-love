@@ -1,4 +1,4 @@
-# ListenBrainzLove 0.4.0
+# ListenBrainzLove 0.4.1
 
 Standalone Perl plugin for Lyrion Music Server 9.1.x. Explicitly Love the currently playing recording on ListenBrainz and verify the saved state. Existing scrobblers continue to submit completed listens.
 
@@ -27,9 +27,9 @@ Add under **Settings → Plugins → Additional repositories**, apply, select **
 
 `https://raw.githubusercontent.com/vysmaty/lyrion-listenbrainz-love/main/repo.xml`
 
-Configure username/token in plugin settings. Empty token input preserves the saved token; validation checks ownership. Minimum declared LMS 9.1.0; integration targets 9.1.1. Repository: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), release `v0.4.0`.
+Configure username/token in plugin settings. Empty token input preserves the saved token; validation checks ownership. Minimum declared LMS 9.1.0; integration targets 9.1.1. Repository: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), release `v0.4.1`.
 
-The exact generated `ListenBrainzLove-0.4.0.zip` has `install.xml` at root. `repo.xml` points to the immutable `dist-v0.4.0` distribution tag and contains SHA-1 of complete ZIP bytes. SHA-256 is provided separately. GitHub's automatic source archive is not an installable plugin ZIP.
+The exact generated `ListenBrainzLove-0.4.1.zip` has `install.xml` at root. `repo.xml` points to the immutable `dist-v0.4.1` distribution tag and contains SHA-1 of complete ZIP bytes. SHA-256 is provided separately. GitHub's automatic source archive is not an installable plugin ZIP.
 
 ## Safety and diagnostics
 
@@ -41,7 +41,7 @@ Tokens are stored in ordinary unencrypted local LMS preferences; protect adminis
 
 ## Verification and build
 
-`prove -v t`: **19 files, 376 assertions, PASS**. Covers MBID/MSID priority, lookup before the first scrobble, Unicode, conflicting versions, bounds, cache, targeted readback, uncertain POST, native read-only state and selection guards, with two real local TCP/HTTP fake providers. No real account or feedback writes are used by these tests.
+`prove -v t`: **19 files, 382 assertions, PASS**. Covers MBID/MSID priority, lookup before the first scrobble, Unicode, conflicting versions, bounds, cache, targeted readback, uncertain POST, native read-only state and selection guards, with two real local TCP/HTTP fake providers. No real account or feedback writes are used by these tests.
 
 `python tools/build.py` runs tests and creates the plugin/source ZIPs, checksums, generated repo.xml and clean allowlisted `.publication/` sources. Local diagnostic notes and listening evidence are excluded. The build never publishes or deploys.
 
