@@ -12,7 +12,10 @@ root = pathlib.Path(__file__).resolve().parents[1]
 out = root / 'dist'
 stage = root / '.publication'
 version = ET.parse(root / 'Plugins/ListenBrainzLove/install.xml').findtext('version')
-assert version == '0.6.0', 'Review release metadata before changing version'
+assert version == '0.6.1', 'Review release metadata before changing version'
+# Keep each release reproducible, but advance file timestamps on new releases.
+# LMS persists compiled settings templates and uses source mtime to invalidate them.
+archive_timestamp = (2026, 10, 25, 19, 3, 44)
 repository = 'https://github.com/vysmaty/lyrion-listenbrainz-love'
 
 # Explicit publication allowlist: never archive arbitrary files from the worktree.
@@ -49,7 +52,7 @@ def archive(path, entries):
     with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as z:
         for source, name in sorted(entries, key=lambda row: row[1]):
             assert not name.startswith('/') and '..' not in pathlib.PurePosixPath(name).parts
-            info = zipfile.ZipInfo(name, (2026, 1, 1, 0, 0, 0))
+            info = zipfile.ZipInfo(name, archive_timestamp)
             info.create_system = 3
             info.external_attr = 0o100644 << 16
             info.compress_type = zipfile.ZIP_DEFLATED

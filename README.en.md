@@ -1,8 +1,8 @@
-# ListenBrainzLove 0.6.0
+# ListenBrainzLove 0.6.1
 
 Standalone Perl plugin for Lyrion Music Server 9.1.x. Explicitly Love a selected recording on ListenBrainz and verify the saved state, including a track that is not playing. Existing scrobblers continue to submit completed listens.
 
-Version 0.6.0 adds direct Love with a native popup and an optional independent desktop playback heart.
+Version 0.6.1 adds direct Love with a native popup and an optional independent desktop playback heart.
 
 ## Use
 
@@ -33,9 +33,9 @@ Add under **Settings → Plugins → Additional repositories**, apply, select **
 
 `https://raw.githubusercontent.com/vysmaty/lyrion-listenbrainz-love/main/repo.xml`
 
-Configure username/token in plugin settings. Empty token input preserves the saved token; validation checks ownership. Minimum declared LMS 9.1.0; integration targets 9.1.1. Repository: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), release `v0.6.0`.
+Configure username/token in plugin settings. Empty token input preserves the saved token; validation checks ownership. Minimum declared LMS 9.1.0; integration targets 9.1.1. Repository: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), release `v0.6.1`.
 
-The exact generated `ListenBrainzLove-0.6.0.zip` has `install.xml` at root. `repo.xml` points to the immutable `dist-v0.6.0` distribution tag and contains SHA-1 of complete ZIP bytes. SHA-256 is provided separately. GitHub's automatic source archive is not an installable plugin ZIP.
+The exact generated `ListenBrainzLove-0.6.1.zip` has `install.xml` at root. `repo.xml` points to the immutable `dist-v0.6.1` distribution tag and contains SHA-1 of complete ZIP bytes. SHA-256 is provided separately. GitHub's automatic source archive is not an installable plugin ZIP.
 
 ## Safety and diagnostics
 
