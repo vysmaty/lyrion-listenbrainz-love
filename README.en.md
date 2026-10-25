@@ -1,14 +1,18 @@
-# ListenBrainzLove 0.5.1
+# ListenBrainzLove 0.6.0
 
 Standalone Perl plugin for Lyrion Music Server 9.1.x. Explicitly Love a selected recording on ListenBrainz and verify the saved state, including a track that is not playing. Existing scrobblers continue to submit completed listens.
 
-Version 0.5.1 fixes incomplete performer credits that could incorrectly reject a matching recording.
+Version 0.6.0 adds direct Love with a native popup and an optional independent desktop playback heart.
 
 ## Use
 
-In Material Skin 6.4.6+, choose **ListenBrainz Love** in the selected queue/library track menu. Opening this native view only reads state: filled heart means confirmed Love, outline means known not-loved, and a question mark means unknown. MSID-only Love is explicitly distinguished from MusicBrainz linkage. **Mark selected track as Love** is a separate explicit write; **Refresh Love status** and clicking the state heart only read.
+In Material Skin 6.4.6+, choose **ListenBrainz Love** in the selected track menu. One click requests Love, verifies feedback and shows a native success/error popup without navigating. A separate **ListenBrainz: Love status** entry opens the read-only state view, retaining the explicit Love and Refresh actions. Filled/outline/unknown icons represent verified loved, known not-loved and unknown states; MSID-only feedback is distinguished from confirmed MusicBrainz linkage.
 
-The initial context-menu navigation icon is static. Actual state is shown inside the plugin view. Rating stars remain independent; no Material JavaScript, ratings hook or user custom.js is modified. Refresh Material after an update. Standard TrackInfo provides **ListenBrainz: Love selected track** and a separate status link. Love works with stopped playback or an empty queue when LMS knows the selected recording and reliable metadata. An inactive remote selection requires a known positive track duration, avoiding indefinite radio stations. Refresh after provider metadata loads. Invalid/expired IDs never fall back to loving the current recording. No Unlove or automatic migration is introduced.
+Enable the optional desktop heart in plugin settings to show verified current-track state beside the playback bar's rating stars. Click an unloved/unknown heart for Love. Click a loved heart or an uncertain write result to refresh instead; secondary click only reads. Double clicks cannot repeat a pending write, and late results cannot update another track/player.
+
+This opt-in integration adds a marked loader to the documented `prefs/material-skin/custom.js`, preserving existing content and backing it up as `custom.js.before-listenbrainzlove` when present. Disabling the option removes only the managed block. Reload Material after changes; disable before uninstalling. No Material core files or star ratings are modified. The footer button is desktop-only; mobile context actions remain available. With the option off, custom.js is untouched.
+
+Standard TrackInfo provides **ListenBrainz: Love selected track** and a separate status link. Love works with stopped playback or an empty queue when LMS knows the selected recording and reliable metadata. An inactive remote selection requires a known positive track duration, avoiding indefinite radio stations. Refresh after provider metadata loads. Invalid/expired IDs never fall back to loving the current recording. No Unlove or automatic migration is introduced.
 
 ## Identity flow
 
@@ -29,9 +33,9 @@ Add under **Settings → Plugins → Additional repositories**, apply, select **
 
 `https://raw.githubusercontent.com/vysmaty/lyrion-listenbrainz-love/main/repo.xml`
 
-Configure username/token in plugin settings. Empty token input preserves the saved token; validation checks ownership. Minimum declared LMS 9.1.0; integration targets 9.1.1. Repository: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), release `v0.5.1`.
+Configure username/token in plugin settings. Empty token input preserves the saved token; validation checks ownership. Minimum declared LMS 9.1.0; integration targets 9.1.1. Repository: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), release `v0.6.0`.
 
-The exact generated `ListenBrainzLove-0.5.1.zip` has `install.xml` at root. `repo.xml` points to the immutable `dist-v0.5.1` distribution tag and contains SHA-1 of complete ZIP bytes. SHA-256 is provided separately. GitHub's automatic source archive is not an installable plugin ZIP.
+The exact generated `ListenBrainzLove-0.6.0.zip` has `install.xml` at root. `repo.xml` points to the immutable `dist-v0.6.0` distribution tag and contains SHA-1 of complete ZIP bytes. SHA-256 is provided separately. GitHub's automatic source archive is not an installable plugin ZIP.
 
 ## Safety and diagnostics
 
@@ -43,7 +47,7 @@ Tokens are stored in ordinary unencrypted local LMS preferences; protect adminis
 
 ## Verification and build
 
-`prove -v t`: **20 files, 424 assertions, PASS**. Covers MBID/MSID priority, lookup before the first scrobble, Unicode, conflicting versions, bounds, cache, targeted readback, uncertain POST, native read-only state, non-playing selection, stopped/empty players and preventing fake playing-now, with two real local TCP/HTTP fake providers. No real account or feedback writes are used by these tests.
+`prove -v t` (Perl plus Node.js for UI tests): **22 files, 482 assertions, PASS**. Covers MBID/MSID priority, lookup before the first scrobble, Unicode, conflicting versions, bounds, cache, targeted readback, uncertain POST, native read-only state, non-playing selection, stopped/empty players and preventing fake playing-now, with two real local TCP/HTTP fake providers. No real account or feedback writes are used by these tests.
 
 `python tools/build.py` runs tests and creates the plugin/source ZIPs, checksums, generated repo.xml and clean allowlisted `.publication/` sources. Local diagnostic notes and listening evidence are excluded. The build never publishes or deploys.
 

@@ -13,6 +13,7 @@ sub handler {
  delete $params->{pref_token};
  my $render=sub {
   $params->{username}=$prefs->get('username')||'';
+  $params->{material_button}=$prefs->get('material_button')||0;
   delete $params->{saveSettings};
   return $class->SUPER::handler($client,$params);
  };
@@ -28,7 +29,12 @@ sub handler {
  Plugins::ListenBrainzLove::Transport::request('GET','https://api.listenbrainz.org/1/validate-token',{Authorization=>'Token '.$token},undef,sub {
   my ($error,$data)=@_;
   my $ok=!$error && ref($data) eq 'HASH' && defined($data->{valid}) && "$data->{valid}" eq '1' && ($data->{user_name}||'') eq $user;
-  if ($ok) { $prefs->set('token',$token); $prefs->set('username',$user) }
+  if ($ok) {
+   my $enabled=($params->{material_button}||'') eq '1'?1:0;
+   my $installed=eval {require Plugins::ListenBrainzLove::Material;Plugins::ListenBrainzLove::Material::configure($enabled);1};
+   unless ($installed) {$params->{warning}='Material button setup failed; settings unchanged.';$callback->($client,$params,$render->(),@args);return}
+   $prefs->set('token',$token); $prefs->set('username',$user);$prefs->set('material_button',$enabled);
+  }
   $finish->($ok);
  });
  return;

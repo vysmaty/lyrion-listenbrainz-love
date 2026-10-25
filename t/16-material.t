@@ -41,13 +41,18 @@ if ($postinit && $query && $diagnostic) {
  }
  local $INC{'Plugins/MaterialSkin/Plugin.pm'}=__FILE__;
  $postinit->(); $postinit->();
- is_deeply([map {$_->[0]} @Plugins::MaterialSkin::Plugin::registered],['track','queue-track'],'register each native context once');
+ is_deeply([map {$_->[0]} @Plugins::MaterialSkin::Plugin::registered],['track','track','queue-track','queue-track'],'register direct Love and read-only state once in each context');
  for my $registration (@Plugins::MaterialSkin::Plugin::registered) {
   my $action=$registration->[1];
-  is($action->{icon},'favorite_border','native heart icon, separate from ratings');
-  is($action->{'title-cs'},'ListenBrainz Love','native entry opens the state and explicit Love action');
-  is_deeply($action->{lmsbrowse},{command=>['listenbrainzlove','state'],params=>['selected_id:$ITEMID']},'opening the native menu is read-only and carries the selected track');
-  ok(!$action->{script} && !$action->{command},'no injected script or shell command');
+  if ($action->{title} eq 'ListenBrainz Love') {
+   is($action->{icon},'favorite_border','native heart icon, separate from ratings');
+   like($action->{script},qr/api\.love\(pid,id\)/,'native Love invokes the explicit action through its UI module');
+   unlike($action->{script},qr/\$ITEMID|\$TRACKNAME|\$ARTISTNAME/,'track data is passed as values rather than interpolated into JavaScript');
+   ok(!$action->{lmsbrowse} && !$action->{command},'direct Love does not navigate or run a shell');
+  } else {
+   is_deeply($action->{lmsbrowse},{command=>['listenbrainzlove','state'],params=>['selected_id:$ITEMID']},'separate status entry remains a read-only native browse');
+   ok(!$action->{script} && !$action->{command},'status entry needs no custom script');
+  }
  }
  my ($calls,$captured,$pending)=(0);
  {
@@ -136,5 +141,29 @@ if ($state) {
  my $request=MaterialRequest->new('99'); $state->($request);
  is($reads,$before,'wrong selection never resolves another track');
  like(Plugins::ListenBrainzLove::Plugin::resultText({ok=>0,uncertain=>1}),qr/may already be stored/,'ambiguous POST outcome is not shown as definite failure');
+}
+{
+ no warnings qw(redefine once);
+ my ($writes,$reads,$done)=(0,0);
+ local *Plugins::ListenBrainzLove::Core::love=sub {$writes++;$done=$_[4]};
+ local *Plugins::ListenBrainzLove::Core::status=sub {$reads++;$_[4]->({ok=>1,score=>0,linked=>1})};
+ my $request=MaterialRequest->new('42');
+ Plugins::ListenBrainzLove::Plugin::actionQuery($request);
+ is($request->{status},'processing','direct action stays pending until verified readback');
+ $done->({ok=>1,score=>1,linked=>1});
+ is($request->{result}{ok},1,'verified direct action returns explicit success');
+ is($request->{result}{score},1,'direct action exposes only the verified score');
+ ok(!exists $request->{result}{item_loop},'direct action does not navigate to a result list');
+ $request=MaterialRequest->new('42');Plugins::ListenBrainzLove::Plugin::statusJsonQuery($request);
+ is($reads,1,'JSON status uses the read-only core');
+ is($writes,1,'status does not resubmit Love');
+ is($request->{result}{score},0,'known unloved state remains distinct from a failed read');
+ $request=MaterialRequest->new('42');Plugins::ListenBrainzLove::Plugin::actionQuery($request);
+ $done->({ok=>0,uncertain=>1,error=>'Readback failed'});
+ is($request->{result}{uncertain},1,'uncertain write propagates to the popup response');
+ like($request->{result}{message},qr/may already be stored/,'uncertain response instructs status refresh');
+ $request=MaterialRequest->new('bad');Plugins::ListenBrainzLove::Plugin::actionQuery($request);
+ is($writes,2,'invalid direct selection never writes the current track');
+ is($request->{result}{ok},0,'invalid direct selection produces an explicit error');
 }
 done_testing;

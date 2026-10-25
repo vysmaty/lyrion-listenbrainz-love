@@ -12,7 +12,7 @@ root = pathlib.Path(__file__).resolve().parents[1]
 out = root / 'dist'
 stage = root / '.publication'
 version = ET.parse(root / 'Plugins/ListenBrainzLove/install.xml').findtext('version')
-assert version == '0.5.1', 'Review release metadata before changing version'
+assert version == '0.6.0', 'Review release metadata before changing version'
 repository = 'https://github.com/vysmaty/lyrion-listenbrainz-love'
 
 # Explicit publication allowlist: never archive arbitrary files from the worktree.
@@ -22,7 +22,8 @@ for directory, pattern in (('Plugins/ListenBrainzLove', '*.pm'),
                            ('Plugins/ListenBrainzLove', '*.txt'),
                            ('Plugins/ListenBrainzLove', '*.html'),
                            ('Plugins/ListenBrainzLove', '*.svg'),
-                           ('t', '*.t'), ('tools', '*.py'), ('docs', '*.md')):
+                           ('Plugins/ListenBrainzLove', '*.js'),
+                           ('t', '*.t'), ('t', '*.cjs'), ('tools', '*.py'), ('docs', '*.md')):
     local_notes = {'IDENTITY-RESEARCH.md', 'SCROBBLER-COMPARISON.md'}
     files.extend(sorted(p for p in (root / directory).rglob(pattern)
                         if p.name not in local_notes))

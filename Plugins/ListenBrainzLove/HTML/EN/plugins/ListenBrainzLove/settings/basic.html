@@ -5,6 +5,8 @@
 <input type="text" id="username" name="username" value="[% username | html %]" autocomplete="off" />
 <label for="token">User token (blank keeps existing token)</label>
 <input type="password" id="token" name="token" value="" autocomplete="new-password" />
+<p><label><input type="checkbox" name="material_button" value="1" [% IF material_button %]checked="checked"[% END %] /> Show a separate ListenBrainz heart in Material Skin's desktop playback bar</label></p>
+<p>This optional button adds a managed loader to Material's custom.js, preserving and backing up existing content. Disable it here to remove the loader, then reload Material. It does not change star ratings.</p>
 <p>The token is stored in local LMS preferences. Restrict access to the settings page and preferences directory. Use a trusted HTTPS connection to LMS.</p>
 [% END %]
 [% PROCESS settings/footer.html %]

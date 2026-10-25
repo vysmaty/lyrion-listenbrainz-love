@@ -15,24 +15,32 @@ my (%identity_cache,%pending);
 sub getDisplayName { 'PLUGIN_LISTENBRAINZLOVE' }
 sub initPlugin {
  my ($class)=@_; $class->SUPER::initPlugin(@_);
- $prefs->init({username=>'',token=>''});
+ $prefs->init({username=>'',token=>'',material_button=>0});
  Slim::Menu::TrackInfo->registerInfoProvider(listenbrainzLove => (after=>'top',func=>\&trackInfo));
  Slim::Control::Request::addDispatch(['listenbrainzlove','love','_index','_quantity'],[1,1,1,\&loveQuery]);
  Slim::Control::Request::addDispatch(['listenbrainzlove','state','_index','_quantity'],[1,1,1,\&stateQuery]);
  Slim::Control::Request::addDispatch(['listenbrainzlove','metadata'],[1,1,0,\&metadataQuery]);
+ Slim::Control::Request::addDispatch(['listenbrainzlove','action'],[1,1,1,\&actionQuery]);
+ Slim::Control::Request::addDispatch(['listenbrainzlove','status'],[1,1,1,\&statusJsonQuery]);
  if (main::WEBUI()) { require Plugins::ListenBrainzLove::Settings; Plugins::ListenBrainzLove::Settings->new }
 }
 sub postinitPlugin {
  return if $material_registered || !exists $INC{'Plugins/MaterialSkin/Plugin.pm'};
  return unless Plugins::MaterialSkin::Plugin->can('registerCustomAction');
+ require Plugins::ListenBrainzLove::Material;
  for my $section ('track','queue-track') {
   Plugins::MaterialSkin::Plugin::registerCustomAction($section,{
    title=>'ListenBrainz Love',
    'title-cs'=>'ListenBrainz Love',
    icon=>'favorite_border',
+   script=>Plugins::ListenBrainzLove::Material::loader('love'),
+  });
+  Plugins::MaterialSkin::Plugin::registerCustomAction($section,{
+   title=>'ListenBrainz: Love status','title-cs'=>'ListenBrainz: Stav Love',icon=>'info_outline',
    lmsbrowse=>{command=>['listenbrainzlove','state'],params=>['selected_id:$ITEMID']},
   });
  }
+ if (($prefs->get('material_button')||'') eq '1') {eval {Plugins::ListenBrainzLove::Material::configure(1)};warn 'ListenBrainzLove: Material button loader could not be installed' if $@}
  $material_registered=1;
 }
 sub shutdownPlugin { Slim::Menu::TrackInfo->deregisterInfoProvider('listenbrainzLove'); %identity_cache=(); %pending=() }
@@ -116,9 +124,9 @@ sub metadataQuery {
 }
 sub resultText {
  my ($result)=@_;
- return 'ListenBrainz: Save not verified; the feedback may already be stored. Refresh its status.' if !$result->{ok} && $result->{uncertain};
- return 'ListenBrainz Love verified (MusicBrainz link not confirmed)' if $result->{ok} && $result->{identity} && !$result->{identity}{recording_mbid};
- return $result->{ok} ? 'ListenBrainz Love verified' : ('ListenBrainz Love failed: '.($result->{error}||'Unknown error'));
+ return label('ListenBrainz: Save not verified; the feedback may already be stored. Refresh its status.','ListenBrainz: Uložení není ověřené; Love už může být uložené. Obnovte stav.') if !$result->{ok} && $result->{uncertain};
+ return label('ListenBrainz Love verified (MusicBrainz link not confirmed)','ListenBrainz: Love potvrzeno (propojení s MusicBrainz není potvrzené)') if $result->{ok} && $result->{identity} && !$result->{identity}{recording_mbid};
+ return $result->{ok} ? label('ListenBrainz Love verified','ListenBrainz: Love potvrzeno') : (label('ListenBrainz Love failed: ','ListenBrainz: Love se nepodařilo uložit: ').($result->{error}||'Unknown error'));
 }
 sub label {
  my ($en,$cs)=@_; my $language=eval {preferences('server')->get('language')}||'';
@@ -145,6 +153,25 @@ sub selectedTrack {
  my $selected_track=eval {$playing_track && defined($playing_track->id) && $id eq ''.$playing_track->id ? $playing_track : Slim::Schema->find('Track',$id)};
  return $selected_track && defined($selected_track->id) && $id eq ''.$selected_track->id && $selected_track->url ? $selected_track : undef;
 }
+sub jsonQuery {
+ my ($request,$write)=@_;
+ my $selected=selectedTrack($request);
+ my $reply=sub {
+  my ($result)=@_;
+  $request->addResult('ok',$result->{ok}?1:0);
+  $request->addResult('uncertain',$result->{uncertain}?1:0);
+  $request->addResult('message',$write?resultText($result):stateText($result));
+  $request->addResult('error',$result->{error}) unless $result->{ok};
+  $request->addResult('score',($result->{msid_score}||0)==1?1:$result->{score}) if exists $result->{score};
+  $request->addResult('linked',$result->{linked} && ($result->{score}||0)==1?1:0);
+  $request->setStatusDone;
+ };
+ return $reply->({ok=>0,error=>'The selected track is unavailable; open its menu again'}) unless $selected;
+ $request->setStatusProcessing;
+ return $write ? performLove($request->client,$reply,$selected) : performStatus($request->client,$reply,$selected);
+}
+sub actionQuery {jsonQuery($_[0],1)}
+sub statusJsonQuery {jsonQuery($_[0],0)}
 sub loveQuery {
  my ($request)=@_;
  my $selected=selectedTrack($request);
