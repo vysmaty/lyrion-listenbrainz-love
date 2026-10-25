@@ -1,7 +1,8 @@
 use strict; use warnings; use Test::More; use lib '.', 't/lib';
 BEGIN {
  sub WEBUI {0}
- for my $pkg (qw(Slim::Plugin::Base Slim::Utils::Prefs Slim::Menu::TrackInfo Slim::Player::ProtocolHandlers Slim::Networking::SimpleAsyncHTTP Slim::Control::Request)) { (my $file="$pkg.pm")=~s{::}{/}g; $INC{$file}=1 }
+ for my $pkg (qw(Slim::Plugin::Base Slim::Utils::Prefs Slim::Menu::TrackInfo Slim::Player::ProtocolHandlers Slim::Networking::SimpleAsyncHTTP Slim::Control::Request Slim::Schema)) { (my $file="$pkg.pm")=~s{::}{/}g; $INC{$file}=1 }
+ package Slim::Schema; our $canonical; sub objectForUrl {$canonical || bless {},'FixtureTrack'}
  package Slim::Control::Request; sub addDispatch {}
  package Slim::Plugin::Base; sub initPlugin {};
  package Slim::Utils::Prefs; sub import {no strict 'refs'; *{caller().'::preferences'}=sub{bless {},'FixturePrefs'}};
@@ -10,6 +11,7 @@ BEGIN {
  package Slim::Player::ProtocolHandlers; sub handlerForURL {'FixtureHandler'};
  package FixtureHandler; our $meta={artist=>'Artist',title=>'Before',version=>'Live',album=>'Album',duration=>193,tracknum=>9,musicbrainz_id=>'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'}; sub getMetadataFor { $meta }
  package FixtureTrack; our $mbid=''; sub url {'https://station.invalid/stream'} sub remote {1} sub musicbrainz_id {$mbid} sub secs {183} sub id {42}
+ package FixtureCanonicalTrack; our @ISA=('FixtureTrack'); sub musicbrainz_id {'22222222-3333-4444-8555-666666666666'} sub secs {198}
  package FixtureSong; sub currentTrack {bless {},'FixtureTrack'}
  package FixtureClient; our $playing=1; sub isPlaying {$playing} sub playingSong {bless {},'FixtureSong'}
 }
@@ -19,6 +21,13 @@ if ($loaded) {
  Plugins::ListenBrainzLove::Plugin->initPlugin;
  ok($Slim::Menu::TrackInfo::provider{listenbrainzLove},'independent TrackInfo provider');
  my $client=bless {},'FixtureClient';
+ {
+  local $Slim::Schema::canonical=bless {},'FixtureCanonicalTrack';
+  local $FixtureHandler::meta={artist=>'Artist',title=>'Song'};
+  my $snapshot=Plugins::ListenBrainzLove::Plugin::capture($client);
+  is($snapshot->{mbid},FixtureCanonicalTrack->musicbrainz_id,'read the canonical URL object used by AudioScrobbler, not only the playing-song object');
+  is($snapshot->{duration},198,'canonical object supplies the AudioScrobbler duration');
+ }
  {
   local $FixtureTrack::mbid='11111111-2222-4333-8444-555555555555';
   local $FixtureHandler::meta={artist=>'Artist',title=>'Song',album=>'Album',tracknum=>11};

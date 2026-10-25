@@ -7,6 +7,7 @@ use Slim::Utils::Prefs;
 use Slim::Menu::TrackInfo;
 use Slim::Player::ProtocolHandlers;
 use Slim::Control::Request;
+use Slim::Schema;
 use Plugins::ListenBrainzLove::Core;
 my $prefs=preferences('plugin.listenbrainzlove');
 my $material_registered;
@@ -42,9 +43,18 @@ sub _metadata {
  my ($client,$sources)=@_;
  die 'No player' unless $client;
  my $song=$client->playingSong or die 'No song';
- my $track=$song->currentTrack or die 'No track';
+ my $playing_track=$song->currentTrack or die 'No track';
+ # AudioScrobbler resolves the canonical schema object by URL. A playing
+ # Song can hold a different RemoteTrack with a different ID and metadata.
+ my $track=Slim::Schema->objectForUrl({url=>$playing_track->url}) || $playing_track;
  my $object_mbid=$track->musicbrainz_id || '';
- $sources->{object_mbid}=$object_mbid if $sources;
+ my $playing_mbid=$playing_track->musicbrainz_id || '';
+ if ($sources) {
+  $sources->{object_mbid}=$object_mbid;
+  $sources->{playing_mbid}=$playing_mbid;
+  $sources->{object_track_id}=''.$track->id;
+  $sources->{playing_track_id}=''.$playing_track->id;
+ }
  my %meta;
  if ($track->remote) {
   my $handler=Slim::Player::ProtocolHandlers->handlerForURL($track->url);
@@ -55,7 +65,7 @@ sub _metadata {
   $sources->{provider_mbid}=$provider_mbid if $sources;
   # AudioScrobbler reads the object's MBID even for remote tracks, and uses
   # its duration when the protocol handler does not supply one.
-  %meta=(artist=>$remote->{artist},title=>$remote->{title},version=>$remote->{version},mbid=>$provider_mbid||$object_mbid,release=>$remote->{album},duration=>$remote->{duration}||$track->secs,tracknumber=>$remote->{tracknum});
+  %meta=(artist=>$remote->{artist},title=>$remote->{title},version=>$remote->{version},mbid=>$provider_mbid||$object_mbid||$playing_mbid,release=>$remote->{album},duration=>$remote->{duration}||$track->secs||$playing_track->secs,tracknumber=>$remote->{tracknum});
  } else {
   $sources->{provider_mbid}='' if $sources;
   %meta=(artist=>$track->artist ? $track->artist->name : '',title=>$track->title,mbid=>$object_mbid,version=>'',release=>$track->album ? $track->album->title : '',duration=>$track->secs,tracknumber=>$track->tracknum);
@@ -87,7 +97,8 @@ sub loveQuery {
  my $selected=$request->getParam('selected_id');
  my $id=defined($selected) && !ref($selected) && $selected=~/\A(?:track_id:)?(-?\d+)\z/ ? $1 : undef;
  my $track=eval {$client->playingSong->currentTrack};
- return $reply->({ok=>0,error=>'The selected track is not currently playing'}) unless defined($id) && $track && defined($track->id) && $id eq ''.$track->id;
+ my $selected_track=defined($id) && $track ? eval {defined($track->id) && $id eq ''.$track->id ? $track : Slim::Schema->find('Track',$id)} : undef;
+ return $reply->({ok=>0,error=>'The selected track is not currently playing'}) unless $selected_track && $selected_track->url eq $track->url;
  $request->setStatusProcessing;
  performLove($client,$reply);
 }

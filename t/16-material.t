@@ -1,7 +1,8 @@
 use strict; use warnings; use utf8; use Test::More; use lib '.';
 BEGIN {
  sub WEBUI {0}
- for my $pkg (qw(Slim::Plugin::Base Slim::Utils::Prefs Slim::Menu::TrackInfo Slim::Player::ProtocolHandlers Slim::Control::Request)) { (my $file="$pkg.pm")=~s{::}{/}g; $INC{$file}=1 }
+ for my $pkg (qw(Slim::Plugin::Base Slim::Utils::Prefs Slim::Menu::TrackInfo Slim::Player::ProtocolHandlers Slim::Control::Request Slim::Schema)) { (my $file="$pkg.pm")=~s{::}{/}g; $INC{$file}=1 }
+ package Slim::Schema; sub objectForUrl {bless {},'MaterialTrack'} sub find {$_[2]==4200 ? bless({},'MaterialLibraryTrack') : bless({},'MaterialOtherTrack')}
  package Slim::Plugin::Base; sub initPlugin {};
  package Slim::Utils::Prefs; sub import {no strict 'refs'; *{caller().'::preferences'}=sub{bless {},'MaterialPrefs'}};
  package MaterialPrefs; sub init {} sub get {$_[1] eq 'token' ? 'fixture' : 'tester'}
@@ -10,6 +11,8 @@ BEGIN {
  package Slim::Control::Request; our @dispatch; sub addDispatch {push @dispatch,[@_]}
  package MaterialHandler; sub getMetadataFor {{artist=>'Artist',title=>'Song',album=>'Album',tracknum=>11}}
  package MaterialTrack; our $id=42; sub id {$id} sub url {'tidal://123.flc'} sub remote {1} sub musicbrainz_id {'11111111-2222-4333-8444-555555555555'} sub secs {183}
+ package MaterialLibraryTrack; our @ISA=('MaterialTrack'); sub id {4200}
+ package MaterialOtherTrack; our @ISA=('MaterialTrack'); sub url {'tidal://999.flc'}
  package MaterialSong; sub currentTrack {bless {},'MaterialTrack'}
  package MaterialClient; our $playing=1; sub isPlaying {$playing} sub playingSong {bless {},'MaterialSong'}
  package MaterialRequest;
@@ -81,6 +84,15 @@ if ($postinit && $query && $diagnostic) {
   is($request->{result}{mbid},MaterialTrack->musicbrainz_id,'diagnostic shows effective ID');
   is($request->{result}{duration},183,'diagnostic shows object duration');
   ok(!exists $request->{result}{token},'diagnostic does not expose credentials');
+  {
+   local $MaterialClient::playing=1;
+   $request=MaterialRequest->new('track_id:4200'); $query->($request);
+   is($calls,3,'library and playing-song IDs for the same URL are accepted');
+   $pending->({ok=>1});
+   is($request->{result}{item_loop}[0]{text},'ListenBrainz Love verified','alias reaches the common verified Love path');
+   $request=MaterialRequest->new('track_id:99'); $query->($request);
+   is($calls,3,'a resolved different URL still cannot love the current track');
+  }
  }
 }
 done_testing;
