@@ -25,6 +25,14 @@ The [official submission format](https://listenbrainz.readthedocs.io/en/latest/u
 
 This plugin enables that fallback only inside its explicit Love action, rechecks current playback before sending it, and rejects completed-listen types and timestamps at the transport boundary. Existing exact identities retain priority. `playing_now` may also expose an existing MSID in `track_metadata.additional_info.recording_msid`.
 
+## Source metadata and Material integration (0.3.0)
+
+Compared LMS 9.1.1 `AudioScrobbler::Plugin::_getMetadata`, `checkScrobble`, and `API::ListenBrainz::getMetadata/_getTrackMetadata` with this plugin's capture path. AudioScrobbler reads `track->musicbrainz_id` for remote tracks too and falls back to `track->secs` when the protocol handler omits duration. The previous adapter omitted both. The adapter now preserves these sources; fresh explicit provider MBID/duration retain priority. No new remote lookup or completed-listen submission is introduced.
+
+The [Material customisation documentation](https://github.com/CDrummond/lms-material/wiki/07-Customisation#custom-menu-entries-and-actions) documents plugin action registration since 6.4.6, `track` and `queue-track` contexts, native icon names, and `lmsbrowse`. Source review against installed version [6.4.14](https://github.com/CDrummond/lms-material/tree/6.4.14) confirmed `Plugin::registerCustomAction`, post-load `plugin-actions`, `$ITEMID` substitution, and native browse result rendering. Registration occurs in `postinitPlugin`, after plugins have loaded, and Material remains optional. A selected item ID is checked against the current track before any Love; stopped playback is still rejected. The heart action does not alter ratings or replace service-specific shuffle/repeat buttons.
+
+The read-only `listenbrainzlove metadata` player query exposes the object/provider/effective IDs for live comparison without ListenBrainz reads or writes. Tests cover missing provider fields, precedence, registration without network activity, selected-item guards, async result handling, and Unicode labels.
+
 ## Distribution repository format
 
 The publication preparation reviewed the real [LyrionJS repo.xml](https://raw.githubusercontent.com/JameZUK/LyrionJS/main/repo.xml): `extensions/details/title` and `extensions/plugins/plugin`, attributes `name`, `version`, `minTarget`, `maxTarget`, and child elements `title`, `desc`, `creator`, `category`, `link`, `url`, `sha`. That example is on a mutable branch; it is a format example, not a pinned dependency.

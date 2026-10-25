@@ -12,7 +12,7 @@ root = pathlib.Path(__file__).resolve().parents[1]
 out = root / 'dist'
 stage = root / '.publication'
 version = ET.parse(root / 'Plugins/ListenBrainzLove/install.xml').findtext('version')
-assert version == '0.2.0', 'Review release metadata before changing version'
+assert version == '0.3.0', 'Review release metadata before changing version'
 repository = 'https://github.com/vysmaty/lyrion-listenbrainz-love'
 
 # Explicit publication allowlist: never archive arbitrary files from the worktree.

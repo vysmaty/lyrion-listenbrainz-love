@@ -20,3 +20,4 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 *~
+!/dist/ListenBrainzLove-0.3.0.zip

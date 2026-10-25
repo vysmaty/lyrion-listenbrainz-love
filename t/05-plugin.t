@@ -1,14 +1,15 @@
 use strict; use warnings; use Test::More; use lib '.', 't/lib';
 BEGIN {
  sub WEBUI {0}
- for my $pkg (qw(Slim::Plugin::Base Slim::Utils::Prefs Slim::Menu::TrackInfo Slim::Player::ProtocolHandlers Slim::Networking::SimpleAsyncHTTP)) { (my $file="$pkg.pm")=~s{::}{/}g; $INC{$file}=1 }
+ for my $pkg (qw(Slim::Plugin::Base Slim::Utils::Prefs Slim::Menu::TrackInfo Slim::Player::ProtocolHandlers Slim::Networking::SimpleAsyncHTTP Slim::Control::Request)) { (my $file="$pkg.pm")=~s{::}{/}g; $INC{$file}=1 }
+ package Slim::Control::Request; sub addDispatch {}
  package Slim::Plugin::Base; sub initPlugin {};
  package Slim::Utils::Prefs; sub import {no strict 'refs'; *{caller().'::preferences'}=sub{bless {},'FixturePrefs'}};
  package FixturePrefs; our %values=(token=>'fixture',username=>'tester'); sub init{} sub get{$values{$_[1]}} sub set{$values{$_[1]}=$_[2]}
  package Slim::Menu::TrackInfo; our %provider; sub registerInfoProvider {my($c,$id,%p)=@_;$provider{$id}=\%p} sub deregisterInfoProvider{delete $provider{$_[1]}}
  package Slim::Player::ProtocolHandlers; sub handlerForURL {'FixtureHandler'};
  package FixtureHandler; our $meta={artist=>'Artist',title=>'Before',version=>'Live',album=>'Album',duration=>193,tracknum=>9,musicbrainz_id=>'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'}; sub getMetadataFor { $meta }
- package FixtureTrack; sub url {'https://station.invalid/stream'} sub remote {1}
+ package FixtureTrack; our $mbid=''; sub url {'https://station.invalid/stream'} sub remote {1} sub musicbrainz_id {$mbid} sub secs {183} sub id {42}
  package FixtureSong; sub currentTrack {bless {},'FixtureTrack'}
  package FixtureClient; our $playing=1; sub isPlaying {$playing} sub playingSong {bless {},'FixtureSong'}
 }
@@ -18,6 +19,17 @@ if ($loaded) {
  Plugins::ListenBrainzLove::Plugin->initPlugin;
  ok($Slim::Menu::TrackInfo::provider{listenbrainzLove},'independent TrackInfo provider');
  my $client=bless {},'FixtureClient';
+ {
+  local $FixtureTrack::mbid='11111111-2222-4333-8444-555555555555';
+  local $FixtureHandler::meta={artist=>'Artist',title=>'Song',album=>'Album',tracknum=>11};
+  my $snapshot=Plugins::ListenBrainzLove::Plugin::capture($client);
+  is($snapshot->{mbid},$FixtureTrack::mbid,'remote track retains the object MBID used by AudioScrobbler');
+  is($snapshot->{duration},183,'remote track uses object duration when the provider omits it, like AudioScrobbler');
+  local $FixtureHandler::meta={%{$FixtureHandler::meta},recording_mbid=>'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',duration=>193};
+  $snapshot=Plugins::ListenBrainzLove::Plugin::capture($client);
+  is($snapshot->{mbid},$FixtureHandler::meta->{recording_mbid},'fresh provider MBID retains priority');
+  is($snapshot->{duration},193,'fresh provider duration retains priority');
+ }
  my $menu=Plugins::ListenBrainzLove::Plugin::trackInfo($client,'https://station.invalid/stream');
  my ($captured,$returned,$playing_now_enabled,$guard,$initially_current);
  { no warnings qw(redefine once); local *Plugins::ListenBrainzLove::Core::love=sub { my($self,$track,$token,$user,$cb)=@_; $captured=$track; $playing_now_enabled=$self->{allow_playing_now}; $guard=$self->{is_current}; $initially_current=$guard->($track); $FixtureHandler::meta->{title}='After async'; $cb->({ok=>1}) };
