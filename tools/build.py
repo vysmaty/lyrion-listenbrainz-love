@@ -12,7 +12,7 @@ root = pathlib.Path(__file__).resolve().parents[1]
 out = root / 'dist'
 stage = root / '.publication'
 version = ET.parse(root / 'Plugins/ListenBrainzLove/install.xml').findtext('version')
-assert version == '0.3.1', 'Review release metadata before changing version'
+assert version == '0.4.0', 'Review release metadata before changing version'
 repository = 'https://github.com/vysmaty/lyrion-listenbrainz-love'
 
 # Explicit publication allowlist: never archive arbitrary files from the worktree.
@@ -21,8 +21,11 @@ for directory, pattern in (('Plugins/ListenBrainzLove', '*.pm'),
                            ('Plugins/ListenBrainzLove', '*.xml'),
                            ('Plugins/ListenBrainzLove', '*.txt'),
                            ('Plugins/ListenBrainzLove', '*.html'),
+                           ('Plugins/ListenBrainzLove', '*.svg'),
                            ('t', '*.t'), ('tools', '*.py'), ('docs', '*.md')):
-    files.extend(sorted((root / directory).rglob(pattern)))
+    local_notes = {'IDENTITY-RESEARCH.md', 'SCROBBLER-COMPARISON.md'}
+    files.extend(sorted(p for p in (root / directory).rglob(pattern)
+                        if p.name not in local_notes))
 assert len(files) == len(set(files))
 assert all(p.is_file() and not p.is_symlink() and root in p.resolve().parents
            for p in files), 'Publication inputs must be regular in-tree files'
@@ -84,6 +87,8 @@ assert ET.parse(root / 'repo.xml').findtext('./plugins/plugin/sha') == sha1
 files.append(root / 'repo.xml')
 
 if stage.exists():
+    assert stage.resolve() == root.resolve() / '.publication'
+    assert not stage.is_symlink() and not stage.is_junction()
     shutil.rmtree(stage)
 stage.mkdir()
 for p in files:

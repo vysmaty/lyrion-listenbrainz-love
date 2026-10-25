@@ -5,7 +5,7 @@ sub run_case {
  my ($list,$version)=@_; my (@calls,$result);
  my $core=Plugins::ListenBrainzLove::Core->new(clock=>sub{1000},transport=>sub {
   my ($m,$u,$h,$b,$cb)=@_; push @calls,[$m,$u,$b];
-  $cb->(undef,$u=~/validate-token/?{valid=>1,user_name=>'tester'}:$u=~/playing-now/?{payload=>{listens=>[]}}:$u=~/\/listens\?/?{payload=>{listens=>$list}}:$u=~/get-feedback/?{feedback=>[{recording_msid=>$id,score=>1}]}:{status=>'ok'});
+  $cb->(undef,$u=~/validate-token/?{valid=>1,user_name=>'tester'}:$u=~/playing-now/?{payload=>{listens=>[]}}:$u=~/\/listens\?/?{payload=>{listens=>$list}}:$u=~/metadata\/lookup/?{}:$u=~/get-feedback/?{feedback=>[{recording_msid=>$id,score=>1}]}:{status=>'ok'});
  });
  $core->love({artist=>'Artist',title=>'Song',version=>$version||'Live'},'fixture','tester',sub{$result=shift});
  return ($result,\@calls);

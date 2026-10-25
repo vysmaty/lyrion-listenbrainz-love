@@ -12,6 +12,7 @@ sub run_case {
   }
   return $cb->(undef,{payload=>{listens=>[$cfg{playing}||{playing_now=>1,track_metadata=>{artist_name=>'Artist',track_name=>'Song'}}]}}) if $url=~/playing-now$/;
   return $cb->(undef,{payload=>{listens=>$cfg{recent}||[]}}) if $url=~/\/listens\?/;
+  return $cb->(undef,{}) if $url=~/metadata\/lookup/;
   return $cb->($cfg{now_error},exists($cfg{now_reply})?$cfg{now_reply}:{status=>'ok',recording_msid=>$id}) if $url=~/submit-listens/;
   return $cb->(undef,{status=>'ok'}) if $url=~/recording-feedback$/;
   return $cb->(undef,{feedback=>[{recording_msid=>$id,score=>1}]}) if $url=~/get-feedback/;

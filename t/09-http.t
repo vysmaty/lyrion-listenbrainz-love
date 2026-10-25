@@ -15,7 +15,7 @@ if(!$pid) {
   my $response;
   if($line=~m{GET /1/validate-token }) {$response={valid=>1,user_name=>'tester'}}
   elsif($line=~m{POST /1/feedback/recording-feedback } && ($headers{authorization}||'') eq 'Token loopback-fixture') {$posted=decode_json($body);$response={status=>'ok'}}
-  elsif($line=~m{GET /1/feedback/user/tester/get-feedback\?} && $posted && $posted->{recording_mbid} eq $id && $posted->{score}==1) {$response={feedback=>[{%$posted}]}}
+  elsif($line=~m{GET /1/feedback/user/tester/get-feedback-for-recordings\?recording_mbids=$id } && $posted && $posted->{recording_mbid} eq $id && $posted->{score}==1) {$response={feedback=>[{%$posted}]}}
   else {exit 4}
   my $json=encode_json($response); print $s "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ".length($json)."\r\nConnection: close\r\n\r\n$json";close $s;
  }

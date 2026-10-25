@@ -35,6 +35,20 @@ The [Material customisation documentation](https://github.com/CDrummond/lms-mate
 
 The read-only `listenbrainzlove metadata` player query exposes the object/provider/effective IDs for live comparison without ListenBrainz reads or writes. Tests cover missing provider fields, precedence, registration without network activity, selected-item guards, async result handling, and Unicode labels.
 
+## Metadata lookup and targeted feedback (0.4.0)
+
+The user-requested [Lookup MBIDs example](https://listenbrainz.readthedocs.io/en/latest/users/api-usage.html#lookup-mbids) uses GET `/1/metadata/lookup/` with `artist_name` and `recording_name`. Version 0.4.0 follows that flow and sends optional `release_name` when available. The [endpoint reference](https://listenbrainz.readthedocs.io/en/latest/users/api/metadata.html) now requires `Authorization: Token ...`. Its optional expansion parameter is `inc`, while the older example spells it `incs`; this plugin requests no expansion and sends neither parameter. Release metadata is a hint, not proof of recording identity.
+
+Checked [metadata_api.py](https://github.com/metabrainz/listenbrainz-server/blob/7d9a3d6f9d5283871d1aa48c9fa5301a1f4f8241/listenbrainz/webserver/views/metadata_api.py): `MAX_MAPPING_QUERY_LENGTH=250`; the sum is measured in Unicode characters before percent encoding. Both core and transport enforce that limit without truncating titles or versions. Empty `{}` is no-match; a nonempty incomplete response is an error. Candidates must contain a valid recording UUID, nonempty recording/artist names and compatible normalized names including all version words. The basic response does not supply duration, so this lookup does not claim to verify candidate duration.
+
+The [recordings API](https://listenbrainz.readthedocs.io/en/latest/users/api/recordings.html) documents GET `get-feedback-for-recordings` with `recording_mbids` and/or `recording_msids`. This replaces first-100 favorites readback and also supplies read-only state. The implementation queries at most one of each type; it accepts score zero as known not-loved, checks exact requested IDs, and requires a shared row when verifying a write containing both IDs. [Upstream helper](https://github.com/metabrainz/listenbrainz-server/blob/7d9a3d6f9d5283871d1aa48c9fa5301a1f4f8241/listenbrainz/webserver/views/feedback_api.py#L203-L230), [zero-score pseudo records](https://github.com/metabrainz/listenbrainz-server/blob/7d9a3d6f9d5283871d1aa48c9fa5301a1f4f8241/listenbrainz/db/feedback.py#L235-L299).
+
+Existing IDs are collected by type. Playing-now MSID does not short-circuit the bounded recent lookup. A mapped MBID wins; an MSID accompanies it only when the same accepted listen explicitly pairs them. Multiple MSIDs paired with one MBID do not need arbitrary selection: the MBID can be submitted alone. Conflicting MBIDs or ambiguous MSID-only matches fail closed.
+
+Positive metadata lookup cache: exact source URL + metadata + username + algorithm version, SHA-256 key, 128 entries, one-hour TTL. No negative-result or credential cache. Available ISRC is captured for diagnostics and future resolver use; no ISRC-to-MBID API is introduced in this release. A network error or rejected candidate never silently falls through to a new identity.
+
+Material's registered context entry is a static navigation icon. It opens a native bounded status list with verified filled/outline/unknown icons and a separate explicit Love action. No skin JavaScript, ratings hook, custom.js or background playing-now is installed. The existing TrackInfo Love action remains available alongside a read-only status link. Transport rejects Unlove, completed listens and manual mapping writes.
+
 ## Distribution repository format
 
 The publication preparation reviewed the real [LyrionJS repo.xml](https://raw.githubusercontent.com/JameZUK/LyrionJS/main/repo.xml): `extensions/details/title` and `extensions/plugins/plugin`, attributes `name`, `version`, `minTarget`, `maxTarget`, and child elements `title`, `desc`, `creator`, `category`, `link`, `url`, `sha`. That example is on a mutable branch; it is a format example, not a pinned dependency.

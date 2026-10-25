@@ -9,7 +9,7 @@ BEGIN {
  package Slim::Menu::TrackInfo; sub registerInfoProvider {} sub deregisterInfoProvider {}
  package Slim::Player::ProtocolHandlers; sub handlerForURL {'MaterialHandler'}
  package Slim::Control::Request; our @dispatch; sub addDispatch {push @dispatch,[@_]}
- package MaterialHandler; sub getMetadataFor {{artist=>'Artist',title=>'Song',album=>'Album',tracknum=>11}}
+ package MaterialHandler; sub getMetadataFor {{artist=>'Artist',title=>'Song',album=>'Album',tracknum=>11,isrc=>'CZAAA2600001'}}
  package MaterialTrack; our $id=42; sub id {$id} sub url {'tidal://123.flc'} sub remote {1} sub musicbrainz_id {'11111111-2222-4333-8444-555555555555'} sub secs {183}
  package MaterialLibraryTrack; our @ISA=('MaterialTrack'); sub id {4200}
  package MaterialOtherTrack; our @ISA=('MaterialTrack'); sub url {'tidal://999.flc'}
@@ -45,9 +45,8 @@ if ($postinit && $query && $diagnostic) {
  for my $registration (@Plugins::MaterialSkin::Plugin::registered) {
   my $action=$registration->[1];
   is($action->{icon},'favorite_border','native heart icon, separate from ratings');
-  is($action->{'title-cs'},'ListenBrainz: Označit právě hrající jako Love','Czech action names its target');
-  ok(utf8::is_utf8($action->{'title-cs'}),'Czech title is Unicode for the Material JSON encoder');
-  is_deeply($action->{lmsbrowse},{command=>['listenbrainzlove','love'],params=>['selected_id:$ITEMID']},'action carries selected track to the server and opens readable results');
+  is($action->{'title-cs'},'ListenBrainz Love','native entry opens the state and explicit Love action');
+  is_deeply($action->{lmsbrowse},{command=>['listenbrainzlove','state'],params=>['selected_id:$ITEMID']},'opening the native menu is read-only and carries the selected track');
   ok(!$action->{script} && !$action->{command},'no injected script or shell command');
  }
  my ($calls,$captured,$pending)=(0);
@@ -84,6 +83,8 @@ if ($postinit && $query && $diagnostic) {
   is($request->{result}{mbid},MaterialTrack->musicbrainz_id,'diagnostic shows effective ID');
   is($request->{result}{duration},183,'diagnostic shows object duration');
   ok(!exists $request->{result}{token},'diagnostic does not expose credentials');
+  ok(!exists $request->{result}{url},'diagnostic does not expose potentially credentialed source URLs');
+  is($request->{result}{isrc},'CZAAA2600001','available provider ISRC is retained without inventing an MBID');
   {
    local $MaterialClient::playing=1;
    $request=MaterialRequest->new('track_id:4200'); $query->($request);
@@ -94,5 +95,41 @@ if ($postinit && $query && $diagnostic) {
    is($calls,3,'a resolved different URL still cannot love the current track');
   }
  }
+}
+my $state=Plugins::ListenBrainzLove::Plugin->can('stateQuery');
+ok($state,'read-only native state command exists');
+if ($state) {
+ my ($reads,$writes,$callback)=(0,0);
+ no warnings qw(redefine once);
+ local *Plugins::ListenBrainzLove::Core::status=sub {my($core,$snapshot,$token,$user,$cb)=@_;$reads++;$callback=$cb};
+ local *Plugins::ListenBrainzLove::Core::love=sub {$writes++};
+ for my $case (
+  [{ok=>1,score=>1,linked=>1},'filled',2],
+  [{ok=>1,score=>0,linked=>1},'outline',3],
+  [{ok=>0,error=>'Provider request failed'},'unknown',3],
+  [{ok=>1,score=>1,linked=>0},'filled',2],
+ ) {
+  my ($result,$icon,$count)=@$case;
+  my $request=MaterialRequest->new('track_id:42'); $state->($request);
+  is($request->{status},'processing','native loading lasts until feedback read completes');
+  $callback->($result);
+  is($request->{status},'done','read completes the native list');
+  is($request->{result}{count},$count,'state plus explicit action/refresh are bounded');
+  like($request->{result}{item_loop}[0]{icon},qr/heart-$icon\.svg$/,'icon represents the verified state');
+  is($request->{result}{item_loop}[0]{type},'text','state row is not a hidden write action');
+  if ($count==3) {
+   is_deeply($request->{result}{item_loop}[1]{actions}{go},{cmd=>['listenbrainzlove','love'],params=>{selected_id=>'track_id:42'}},'Love is a separate explicit action bound to selection');
+  }
+  is($writes,0,'viewing state never invokes Love');
+ }
+ {
+  local $MaterialClient::playing=0;
+  my $request=MaterialRequest->new('42'); $state->($request);$callback->({ok=>1,score=>0});
+  is($request->{result}{count},2,'paused/stopped player can read state but cannot submit Love');
+ }
+ my $before=$reads;
+ my $request=MaterialRequest->new('99'); $state->($request);
+ is($reads,$before,'wrong selection never resolves another track');
+ like(Plugins::ListenBrainzLove::Plugin::resultText({ok=>0,uncertain=>1}),qr/may already be stored/,'ambiguous POST outcome is not shown as definite failure');
 }
 done_testing;

@@ -9,6 +9,7 @@ sub run_case {
   my $data=$url=~/validate-token/?{valid=>1,user_name=>'tester'}:
    $url=~/playing-now/?{payload=>{listens=>[$playing]}}:
    $url=~/\/listens\?/?{payload=>{listens=>$recent}}:
+   $url=~/metadata\/lookup/?{}:
    $url=~/get-feedback/?{feedback=>[{recording_msid=>$id,score=>1}]}:{status=>'ok'};
   $cb->(undef,$data);
  });

@@ -1,35 +1,50 @@
-# ListenBrainzLove 0.3.1
+# ListenBrainzLove 0.4.0
 
-Standalone Perl plugin targeting LMS 9.1.x. Adds an independent TrackInfo action, **ListenBrainz: Love currently playing**. Never registers the global AudioScrobbler Love handler, never scrobbles, and never creates a fake playing-now submission.
+Standalone Perl plugin for Lyrion Music Server 9.1.x. Explicitly Love the currently playing recording on ListenBrainz and verify the saved state. Existing scrobblers continue to submit completed listens.
 
-Version 0.3.1 resolves the canonical Lyrion schema object by the playing track's URL, matching AudioScrobbler's source. This can differ from the playing Song's RemoteTrack object. Its `musicbrainz_id` and duration are retained for remote tracks when the provider omits them; the playing object's ID is also preserved if available. Fresh provider metadata retains priority. No new MusicBrainz lookup or identity fallback is added.
+## Use
 
-Material Skin 6.4.6+ gets a native heart action in both now-playing and queue-track menus. It uses the same verified Love operation and resolves a selected library/remote ID to its URL before checking that it is current. Distinct IDs for the same playing URL are accepted; other tracks are rejected. The outline heart is an action icon, not a persisted Love status or an Unlove toggle. Lyrion rating stars are independent. Refresh Material after updating.
+In Material Skin 6.4.6+, choose **ListenBrainz Love** in the current-track or queue-track menu. Opening this native view only reads state: filled heart means confirmed Love, outline means known not-loved, and a question mark means unknown. MSID-only Love is explicitly distinguished from MusicBrainz linkage. **Mark currently playing as Love** is a separate explicit write; **Refresh Love status** only reads.
 
-The read-only player command `listenbrainzlove metadata` reports canonical `object_mbid`, `playing_mbid`, `provider_mbid`, effective `mbid`, both object IDs, and the captured track metadata, including while stopped. It does not call ListenBrainz, submit feedback, or return credentials. This distinguishes missing source metadata from later scrobbling-service enrichment.
+The initial context-menu navigation icon is static. Actual state is shown inside the plugin view. Rating stars remain independent; no Material JavaScript, ratings hook or user custom.js is modified. Refresh Material after an update. Standard TrackInfo retains direct Love and a separate status link. Stopped playback permits status reads, not Love. No Unlove or automatic migration is introduced.
 
-Since version 0.2.0, only an explicit Love action may send a real, timestamp-free `playing_now` notification with `return_msid=true`, after rechecking that the same track is still playing. This creates temporary now-playing state, not a completed listen. Existing recording IDs retain priority. Results remain readable in Material Skin.
+## Identity flow
 
-The action captures immutable click-time artist/title/version/recording MBID, album, duration and track number. Metadata comes from the current protocol handler. A valid supplied MBID has priority, followed by exact playing-now / bounded recent-listen matching (300 seconds, fewer than 100 results). A playing-now response without an ID allows recent-listen fallback. If no existing identity is available, the explicit action may request an MSID using the real current track. Ambiguous, saturated or malformed lookup results fail closed. Token and username are validated; success requires exact recording-ID feedback readback among the first 100 Loved records.
+1. Capture immutable click-time metadata using AudioScrobbler's canonical URL object and fresh provider metadata. Retain available ISRC; this release does not add an ISRC resolver.
+2. Prefer authoritative source recording MBID or an accepted cache entry for this exact source and metadata.
+3. Otherwise inspect matching playing-now and bounded recent listens (300 seconds, fewer than 100 rows). Playing-now MSID does not short-circuit available MBID resolution. Saturated or conflicting results fail closed.
+4. Resolve missing MBID using authenticated GET `/1/metadata/lookup/`, with `artist_name`, `recording_name` and optional `release_name`. A separate version is retained in the lookup title. Empty `{}` alone means no match; malformed data and network errors do not.
+5. Require a recording UUID and compatible normalized artist/title/version. Unicode, case and punctuation separators are normalized; version words are never discarded and no fuzzy guessing is used. Album is a hint, not an exact-edition requirement. Basic lookup has no candidate duration, so duration is not claimed as verified there. Existing-listen matching compares two available durations within three seconds.
+6. POST feedback with `score=1`. Attach both IDs only when the same accepted listen explicitly pairs them; otherwise prefer MBID. Verify exact IDs via targeted `get-feedback-for-recordings`, independently of the first 100 favorites. A combined-ID write requires confirmation of their shared row.
 
-The transport allows `submit-listens?return_msid=true` only for one `playing_now` item with no `listened_at`. It rejects `single`, `import`, multiple tracks and timestamps before HTTP. No background submissions or completed scrobbles are created by this plugin.
+Positive lookup cache: maximum 128 entries, one-hour TTL, keyed by username, source URL, metadata and algorithm version, with a SHA-256 digest. No negative or credential cache. Direct source MBIDs are trusted as authoritative recording IDs; UUID syntax alone cannot establish entity type or recording correctness. Text lookup does not prove a unique catalog match.
 
-Configure username and token in the plugin settings after a separately approved installation. Password input is never prefilled; tokens are stored in ordinary local LMS preferences, not encrypted. Protect the LMS administration interface and preference files. Fixed HTTPS provider, strict TLS verification, no redirects, 8-second requests, 30-second operation deadline. No pending queue or unlove.
+After a confirmed no-match, reuse a matching MSID. If absent, only explicit Love may recheck unchanged active playback and submit one real timestamp-free `playing_now?return_msid=true`, then Love the returned MSID. This is temporary state, not a completed scrobble. Status reads never submit it. Network errors, rejected candidates and malformed responses never silently fall through to another identity. A failed post-write readback reports uncertainty because feedback may already be stored.
 
-## Verification
+## Installation
 
-`prove -v t`: **16 files, 259 assertions, PASS**. Includes actual local TCP HTTP fake-server POST/readback plus transport injection and LMS facades for negative scenarios, remote object/provider metadata precedence, native Material registration, Unicode labels, selection guards, and read-only diagnostics. Development evidence and integration logs are excluded from publication.
-
-Upstream LMS 9.1.1 commit `1ceeaf1d601134f765b5a3e65113726284eaae6d` was started in an isolated scratch tree. The plugin was loaded there and its real settings HTML returned HTTP 200 with password input. Installation and the settings page were subsequently checked on a live LMS 9.1.1 server. The user confirmed a successful real Love with version 0.2.0; the agent has not performed an additional live feedback write.
-
-Limitations: this environment lacks Perl IO::Socket::SSL; production HTTPS is therefore untested here and the plugin refuses SSL downgrade. No real Radio Paradise/player/Material Skin GUI click or live ListenBrainz write was exercised. Service playing-now has no timestamp, so the plugin trusts the service's current response within the operation deadline. The full Czech README documents security, matching rules, and deployment gates.
-
-Run `prove -v t`; `python3 tools/build.py` runs all tests and creates `dist/ListenBrainzLove-0.3.1.zip` (standard LMS ZIP with `install.xml` at root), the source ZIP, SHA-1/SHA-256 manifests, generated `repo.xml`, and clean allowlisted sources in `.publication/`. It never includes evidence, local state, credentials or previous archives. Review source contents before publishing. The optional `tools/isolated_lms.py` requires a disposable LMS 9.1.1 clone at `.local/lms-9.1.1`; it is not run by the build.
-
-## Repository installation
-
-The repository is https://github.com/vysmaty/lyrion-listenbrainz-love, branch `main`, release `v0.3.1`. Nothing is uploaded by the build tools. Add this URL under **Settings → Plugins → Additional repositories**, apply, select **ListenBrainz Love**, then install/restart as prompted:
+Add under **Settings → Plugins → Additional repositories**, apply, select **ListenBrainz Love**, then install/restart as prompted:
 
 `https://raw.githubusercontent.com/vysmaty/lyrion-listenbrainz-love/main/repo.xml`
 
-LMS 9.1.0 or later is declared; verification targeted 9.1.1, not every later release. The release asset must be the exact generated `ListenBrainzLove-0.3.1.zip`, not GitHub's automatic source archive. `repo.xml` points to `https://raw.githubusercontent.com/vysmaty/lyrion-listenbrainz-love/dist-v0.3.1/dist/ListenBrainzLove-0.3.1.zip` to avoid oversized headers from GitHub Release downloads; `<sha>` is the SHA-1 of its bytes. Rebuild XML and ZIP together and publish the matching distribution tag after source changes.
+Configure username/token in plugin settings. Empty token input preserves the saved token; validation checks ownership. Minimum declared LMS 9.1.0; integration targets 9.1.1. Repository: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), release `v0.4.0`.
+
+The exact generated `ListenBrainzLove-0.4.0.zip` has `install.xml` at root. `repo.xml` points to the immutable `dist-v0.4.0` distribution tag and contains SHA-1 of complete ZIP bytes. SHA-256 is provided separately. GitHub's automatic source archive is not an installable plugin ZIP.
+
+## Safety and diagnostics
+
+Fixed HTTPS origin and allowlisted paths/methods; strict TLS/hostname verification; no redirects; token only in Authorization. Lookup enforces a 250-Unicode-character sum and correct UTF-8 escaping. Eight-second HTTP timeout, 30-second operation deadline, bounded JSON. HTTP 429 observes numeric Retry-After / X-RateLimit-Reset-In or a 30-second default cooldown; no automatic write retries. Repeated concurrent Love on one player is blocked during verification.
+
+Transport rejects completed listens (`single`, `import`), timestamps in playing-now, multiple tracks, manual mapping and feedback other than Love. No global AudioScrobbler Love handler is registered.
+
+Tokens are stored in ordinary unencrypted local LMS preferences; protect administration and files. The plugin never reads tokens from the environment. Read-only `listenbrainzlove metadata` reports source/effective IDs, available ISRC and metadata, including while stopped, without ListenBrainz requests. It excludes tokens and potentially credentialed stream URLs.
+
+## Verification and build
+
+`prove -v t`: **19 files, 376 assertions, PASS**. Covers MBID/MSID priority, lookup before the first scrobble, Unicode, conflicting versions, bounds, cache, targeted readback, uncertain POST, native read-only state and selection guards, with two real local TCP/HTTP fake providers. No real account or feedback writes are used by these tests.
+
+`python tools/build.py` runs tests and creates the plugin/source ZIPs, checksums, generated repo.xml and clean allowlisted `.publication/` sources. Local diagnostic notes and listening evidence are excluded. The build never publishes or deploys.
+
+The test Perl lacks IO::Socket::SSL; transport facades are not a live TLS handshake. Target LMS and Material verification is a separate release check; an actual user click verifies a real feedback write.
+
+[Česky](README.md) · [API/source evidence](docs/UPSTREAM.md) · [license](LICENSE)
