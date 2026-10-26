@@ -2,17 +2,45 @@ package Plugins::ListenBrainzLove::Core;
 use strict;
 use warnings;
 use Plugins::ListenBrainzLove::Identity;
+use Digest::SHA qw(sha256_hex);
+use Encode qw(encode_utf8);
 sub new { my ($class,%args)=@_; bless \%args,$class }
 sub uuid { Plugins::ListenBrainzLove::Identity::uuid($_[0]) }
 sub love { my ($self,@args)=@_; $self->_run('love',@args) }
+sub unlove { my ($self,@args)=@_; $self->_run('unlove',@args) }
 sub status { my ($self,@args)=@_; $self->_run('status',@args) }
+sub _copy {
+ my ($result)=@_;return {%$result,map {$_=>{%{$result->{$_}}}} grep {ref($result->{$_}) eq 'HASH'} qw(identity track)};
+}
+sub _store {
+ my ($cache,$key,$entry,$now)=@_;
+ delete $cache->{$_} for grep {$cache->{$_}{expires}<=$now} keys %$cache;
+ if (!exists($cache->{$key}) && keys(%$cache)>=128) {my ($oldest)=sort {$cache->{$a}{expires}<=>$cache->{$b}{expires}} keys %$cache;delete $cache->{$oldest}}
+ $cache->{$key}=$entry;
+}
 sub _run {
- my ($self,$mode,$input,$token,$user,$done)=@_;
+ my ($self,$mode,$input,$token,$user,$done,$options)=@_;
  my $clock=$self->{clock}||sub{time};
  my $now=$clock->();
  my ($finished,$write_started)=(0,0);
  my ($lookup,$metadata_lookup,$fallback);
- my $finish=sub { return if $finished++; $lookup=$metadata_lookup=$fallback=undef; $done->(shift) };
+ my ($state,$credential_key,$status_key,$pending_key,$generation);
+ my $invalidate=sub {
+  return unless $state && defined($credential_key);
+  $state->{generation}=1+($state->{generation}||0);
+  delete $state->{status}{$_} for grep {$state->{status}{$_}{credential} eq $credential_key} keys %{$state->{status}||{}};
+ };
+ my $finish=sub {
+  return if $finished++;my $result=shift;
+  $lookup=$metadata_lookup=$fallback=undef;
+  if ($state && defined($status_key)) {
+   if ($mode ne 'status') {$invalidate->();$generation=$state->{generation};$result->{action}=$mode}
+   _store($state->{status}||={},$status_key,{result=>_copy($result),credential=>$credential_key,expires=>$clock->()+30},$clock->())
+    if $result->{ok} && $generation==($state->{generation}||0);
+  }
+  my $waiters=defined($pending_key) ? delete $state->{pending}{$pending_key} : undef;
+  if ($waiters) {eval {$_->(_copy($result))} for @$waiters} else {$done->($result)}
+ };
  my $fail=sub { $finish->({ok=>0,error=>shift,uncertain=>$write_started?1:0}) };
  return $fail->('Missing artist or title') unless ref($input) eq 'HASH' && !grep { !Plugins::ListenBrainzLove::Identity::text($input->{$_}) } qw(artist title);
  return $fail->('Invalid credentials') unless defined($token) && $token =~ /\A[^\s\x00-\x1f\x7f]{1,256}\z/ && defined($user) && $user =~ /\A[A-Za-z0-9_.-]{1,64}\z/;
@@ -22,6 +50,18 @@ sub _run {
  return $fail->('Invalid current track duration') if length($track->{duration}) && ($track->{duration}!~/\A\d+(?:\.\d+)?\z/ || $track->{duration}>24*24*60*60);
  my $cache=$self->{cache}||={};
  my $cache_key=Plugins::ListenBrainzLove::Identity::cache_key($track,$user);
+ $state=$self->{state}||={};
+ $credential_key=sha256_hex(encode_utf8($user."\0".$token));
+ $status_key=sha256_hex($credential_key."\0".$cache_key);
+ $generation=$state->{generation}||0;
+ my $previous=($state->{status}||{})->{$status_key};
+ if ($mode eq 'status') {
+  return $done->(_copy($previous->{result})) if !(ref($options) eq 'HASH' && $options->{refresh}) && ref($previous) eq 'HASH' && $previous->{expires}>$now;
+  $pending_key=$status_key.':'.$generation;
+  if ($state->{pending}{$pending_key}) {push @{$state->{pending}{$pending_key}},$done;return}
+  $state->{pending}{$pending_key}=[$done];
+ } else {$invalidate->();$generation=$state->{generation}}
+ my $wanted=$mode eq 'unlove'?0:1;
  my $request=sub {
   my ($method,$path,$auth,$body,$cb)=@_;
   return $fail->('Click expired; click Love again') if $clock->()-$now>30;
@@ -30,13 +70,15 @@ sub _run {
    $self->{transport}->($method,'https://api.listenbrainz.org'.$path,$auth?{Authorization=>'Token '.$token}:{},$body,sub {
     return if $called++ || $finished;
     my ($error,$data)=@_;
+    if (defined($error) && $error eq 'Provider authentication failed') {delete $state->{auth}{$credential_key};$invalidate->()}
+    return $fail->('Playback changed or stopped; click Love again') if defined($error) && $error eq 'Provider snapshot changed';
     return $fail->('ListenBrainz rate limit; wait briefly and refresh the status') if defined($error) && $error eq 'Provider rate limit; retry shortly';
     return $fail->($write_started?'Feedback could not be verified; write may have succeeded':'Provider request failed') if $error;
     return $fail->('Invalid provider payload') unless ref($data) eq 'HASH';
     return $fail->('Click expired; click Love again') if $clock->()-$now>30;
     my $valid=eval {$cb->($data);1};
     $fail->('Invalid provider payload') unless $valid;
-   }); 1;
+   },{deadline=>$now+30,$path eq '/1/submit-listens?return_msid=true'?(before_send=>sub {ref($self->{is_current}) eq 'CODE' && $self->{is_current}->($track)}):()}); 1;
   };
   $fail->('Provider request failed') unless $ok;
  };
@@ -56,10 +98,10 @@ sub _run {
      return $fail->('Conflicting feedback states') if exists($scores{$key}) && $scores{$key} ne $row->{score};
      $scores{$key}=$row->{score}; $matches++;
     }
-    $paired=1 if $matches==@keys && $row->{score}==1;
+    $paired=1 if $matches==@keys && $row->{score}==$wanted;
    }
    return $fail->('Feedback not verified; do not assume success') if grep {!exists($scores{$_})} @keys;
-   return $fail->('Feedback not verified; write may have succeeded') if $written && ((grep {$scores{$_}!=1} @keys) || !$paired);
+   return $fail->('Feedback not verified; write may have succeeded') if $written && ((grep {$scores{$_}!=$wanted} @keys) || ($wanted==1 && !$paired));
    my $primary=exists($identity->{recording_mbid})?'recording_mbid':'recording_msid';
    $finish->({ok=>1,identity=>$identity,track=>$track,score=>0+$scores{$primary},linked=>exists($identity->{recording_mbid})?1:0,source=>$source,
     exists($scores{recording_msid})?(msid_score=>0+$scores{recording_msid}):()});
@@ -69,7 +111,7 @@ sub _run {
   my ($identity,$source)=@_;
   return $read->($identity,$source,0) if $mode eq 'status';
   $write_started=1;
-  $request->('POST','/1/feedback/recording-feedback',1,{%$identity,score=>1},sub {
+  $request->('POST','/1/feedback/recording-feedback',1,{%$identity,score=>$wanted},sub {
    my ($post)=@_; return $fail->('Feedback rejected') unless ($post->{status}||'') eq 'ok';
    $read->($identity,$source,1);
   });
@@ -77,7 +119,7 @@ sub _run {
  my (%mbids,%msids,%pairs);
  $fallback=sub {
   return $send->({recording_msid=>(keys %msids)[0]},'existing_msid') if keys(%msids)==1;
-  return $fail->('Recording identity is not available yet; no safe metadata match') if $mode eq 'status' || !$self->{allow_playing_now};
+  return $fail->('Recording identity is not available yet; no safe metadata match') if $mode ne 'love' || !$self->{allow_playing_now};
   my $current=eval {ref($self->{is_current}) eq 'CODE' && $self->{is_current}->($track)};
   return $fail->('Playback changed or stopped; click Love again') unless $current;
   my $info={media_player=>'Lyrion Music Server',submission_client=>'ListenBrainzLove'};
@@ -147,14 +189,23 @@ sub _run {
    $metadata_lookup->();
   });
  };
- $request->('GET','/1/validate-token',1,undef,sub {
-  my ($valid)=@_;
-  return $fail->('Invalid token or username') unless defined($valid->{valid}) && "$valid->{valid}" eq '1' && ($valid->{user_name}||'') eq $user;
+ my $validated=sub {
+  # Reuse the exact previously verified pair for removal. Zero feedback rows
+  # after deletion are independent; they no longer need a common DB row.
+  return $send->({%{$previous->{result}{identity}}},'verified_status') if $mode eq 'unlove' && ref($previous) eq 'HASH' && $previous->{expires}>$now && ref($previous->{result}{identity}) eq 'HASH';
   return $send->({recording_mbid=>lc($track->{mbid})},'source') if uuid($track->{mbid});
   return $fail->('Invalid recording MBID') if length $track->{mbid};
   my $cached=$cache->{$cache_key};
   return $send->({recording_mbid=>$cached->{mbid}},'cache') if ref($cached) eq 'HASH' && $cached->{expires}>$now && uuid($cached->{mbid});
   $lookup->(0);
+ };
+ my $auth=($state->{auth}||{})->{$credential_key};
+ return $validated->() if ref($auth) eq 'HASH' && $auth->{expires}>$now;
+ $request->('GET','/1/validate-token',1,undef,sub {
+  my ($valid)=@_;
+  return $fail->('Invalid token or username') unless defined($valid->{valid}) && "$valid->{valid}" eq '1' && ($valid->{user_name}||'') eq $user;
+  _store($state->{auth}||={},$credential_key,{expires=>$clock->()+300},$clock->());
+  $validated->();
  });
 }
 1;

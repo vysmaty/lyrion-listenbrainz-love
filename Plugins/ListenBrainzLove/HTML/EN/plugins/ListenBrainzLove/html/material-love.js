@@ -14,20 +14,23 @@
         if (data && Number(data.ok) === 1) bus.$emit('showMessage', message, 6);
         else bus.$emit('showError', undefined, message, 12);
     };
-    async function request(pid, id, method) {
-        const response = await lmsCommand(pid, ['listenbrainzlove', method, 'selected_id:' + normalized(id)]);
+    async function request(pid, id, method, refresh) {
+        const command = ['listenbrainzlove', method, 'selected_id:' + normalized(id)];
+        if (refresh) command.push('refresh:1');
+        const response = await lmsCommand(pid, command);
         const data = response && response.data && response.data.result;
         if (!data || !Object.prototype.hasOwnProperty.call(data, 'ok')) throw new Error('Invalid ListenBrainz response');
         return data;
     }
-    async function love(pid, id) {
+    async function write(pid, id, method) {
         if (!pid || !valid(id)) { notice({message:text('ListenBrainz: Select a known track first.', 'ListenBrainz: Nejprve vyberte skladbu.')}); return; }
         if (pending.has(pid)) return pending.get(pid);
         const target = key(pid, id);
         const selectedKey = current && current.identity === target ? current.key : null;
+        readSequence++; // An older status read must not override this write.
         const operation = (async function () {
             let data;
-            try { data = await request(pid, id, 'action'); }
+            try { data = await request(pid, id, method); }
             catch (_) { data = {ok:0, uncertain:1}; }
             notice(data);
             // A response for the old track/player must not fill the new track's heart.
@@ -38,11 +41,12 @@
         try { return await operation; }
         finally { pending.delete(pid); render(); }
     }
+    function love(pid, id) { return write(pid, id, 'action'); }
     async function readStatus(announce) {
         if (!current) return;
         const target = current, sequence = ++readSequence;
         let data;
-        try { data = await request(target.pid, target.id, 'status'); }
+        try { data = await request(target.pid, target.id, 'status', announce); }
         catch (_) { data = {ok:0,message:text('ListenBrainz: State unknown. Click the heart to retry.', 'ListenBrainz: Stav není známý. Kliknutím na srdíčko zkuste Love.')}; }
         if (current && target.key === current.key && sequence === readSequence) { result = data; render(); }
         if (announce) notice(data);
@@ -69,7 +73,7 @@
         button.disabled = !current || !!busy;
         button.setAttribute('aria-busy', String(!!busy));
         button.setAttribute('aria-pressed', String(!!loved));
-        const title = busy ? text('ListenBrainz: Verifying Love…', 'ListenBrainz: Ověřuji Love…') : loved ? text('ListenBrainz: Loved. Click to refresh status.', 'ListenBrainz: Love potvrzeno. Kliknutím obnovit stav.') : result && result.uncertain ? text('ListenBrainz: Save not verified. Click to refresh status.', 'ListenBrainz: Uložení není ověřené. Kliknutím obnovit stav.') : text('ListenBrainz: Love the current track', 'ListenBrainz: Označit aktuální skladbu jako Love');
+        const title = busy ? text('ListenBrainz: Verifying change…', 'ListenBrainz: Ověřuji změnu…') : loved ? text('ListenBrainz: Loved. Click to remove Love.', 'ListenBrainz: Love potvrzeno. Kliknutím zrušit Love.') : result && result.uncertain ? text('ListenBrainz: Save not verified. Click to refresh status.', 'ListenBrainz: Uložení není ověřené. Kliknutím obnovit stav.') : text('ListenBrainz: Love the current track', 'ListenBrainz: Označit aktuální skladbu jako Love');
         button.title = title; button.setAttribute('aria-label', title);
         button.dataset.state = known ? (loved ? 'filled' : 'outline') : 'unknown';
         button.querySelector('path').setAttribute('d', loved ? 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54Z' : 'M16.5 3A5.98 5.98 0 0 0 12 5.09 5.98 5.98 0 0 0 7.5 3C4.42 3 2 5.42 2 8.5c0 3.78 3.4 6.86 8.55 11.54L12 21.35l1.45-1.32C18.6 15.36 22 12.28 22 8.5 22 5.42 19.58 3 16.5 3ZM12.1 18.55l-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5A3.47 3.47 0 0 1 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87A3.85 3.85 0 0 1 16.5 5 3.47 3.47 0 0 1 20 8.5c0 2.89-3.14 5.74-7.9 10.05Z');
@@ -93,7 +97,8 @@
         button.addEventListener('click', event => {
             event.stopPropagation();
             if (!current) return;
-            if (result && (result.uncertain || (Number(result.ok) === 1 && Number(result.score) === 1))) readStatus(true);
+            if (result && result.uncertain) readStatus(true);
+            else if (result && Number(result.ok) === 1 && Number(result.score) === 1) write(current.pid, current.id, 'unlove');
             else love(current.pid, current.id);
         });
         button.addEventListener('contextmenu', event => { event.preventDefault(); event.stopPropagation(); readStatus(true); });

@@ -41,7 +41,7 @@ if ($postinit && $query && $diagnostic) {
  }
  local $INC{'Plugins/MaterialSkin/Plugin.pm'}=__FILE__;
  $postinit->(); $postinit->();
- is_deeply([map {$_->[0]} @Plugins::MaterialSkin::Plugin::registered],['track','track','queue-track','queue-track'],'register direct Love and read-only state once in each context');
+ is_deeply([map {$_->[0]} @Plugins::MaterialSkin::Plugin::registered],['track','queue-track'],'register only direct Love once in each context; status remains in TrackInfo');
  for my $registration (@Plugins::MaterialSkin::Plugin::registered) {
   my $action=$registration->[1];
   if ($action->{title} eq 'ListenBrainz Love') {
@@ -165,5 +165,24 @@ if ($state) {
  $request=MaterialRequest->new('bad');Plugins::ListenBrainzLove::Plugin::actionQuery($request);
  is($writes,2,'invalid direct selection never writes the current track');
  is($request->{result}{ok},0,'invalid direct selection produces an explicit error');
+}
+{
+ no warnings qw(redefine once);
+ my ($snapshot,$done,$options);
+ local *Plugins::ListenBrainzLove::Core::unlove=sub {$snapshot=$_[1];$done=$_[4]};
+ local *Plugins::ListenBrainzLove::Core::status=sub {$options=$_[5];$_[4]->({ok=>1,score=>0})};
+ my $request=MaterialRequest->new('42');
+ Plugins::ListenBrainzLove::Plugin::unloveQuery($request);
+ is($request->{status},'processing','JSON removal waits for verified feedback');
+ is($snapshot->{title},'Song','JSON removal targets the selected recording metadata');
+ $done->({ok=>1,score=>0});
+ is($request->{result}{score},0,'JSON removal returns verified zero');
+ like($request->{result}{message},qr/Love removed/,'popup distinguishes removal from adding Love');
+ $request=MaterialRequest->new('42');$request->{params}{refresh}=1;
+ Plugins::ListenBrainzLove::Plugin::statusJsonQuery($request);
+ is_deeply($options,{refresh=>1},'explicit JSON refresh bypasses only the short feedback cache');
+ my $info=Plugins::ListenBrainzLove::Plugin::trackInfo($request->client,MaterialTrack->url);
+ is(scalar @$info,2,'track details retain both Love and status entries');
+ like($info->[1]{name},qr/Love status/,'status remains available in the song detail');
 }
 done_testing;

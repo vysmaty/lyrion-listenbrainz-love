@@ -1,5 +1,8 @@
 use strict; use warnings; use Test::More; use JSON::PP qw(decode_json); use lib '.';
 BEGIN {
+ $INC{'Slim/Utils/Timers.pm'}=1;
+ package Slim::Utils::Timers;sub killTimers {} sub setTimer {die 'Unexpected timer in immediate-response fixture'}
+ package main;
  $INC{'Slim/Networking/SimpleAsyncHTTP.pm'}=1;
  package Slim::Networking::SimpleAsyncHTTP;
  our ($calls,$request); $calls=0;
@@ -9,6 +12,7 @@ BEGIN {
  sub code {200} sub content {'{"status":"ok","recording_msid":"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"}'}
 }
 use Plugins::ListenBrainzLove::Transport;
+{no warnings 'redefine';my $tick=0;*Plugins::ListenBrainzLove::Transport::_now=sub {$tick+=2}}
 my $url='https://api.listenbrainz.org/1/submit-listens?return_msid=true';
 my $listen={track_metadata=>{artist_name=>'Artist',track_name=>'Song'}};
 my ($error,$data);

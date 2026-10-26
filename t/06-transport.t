@@ -1,5 +1,8 @@
 use strict; use warnings; use Test::More; use lib '.';
 BEGIN {
+ $INC{'Slim/Utils/Timers.pm'}=1;
+ package Slim::Utils::Timers;sub killTimers {} sub setTimer {die 'Unexpected timer in immediate-response fixture'}
+ package main;
  $INC{'Slim/Networking/SimpleAsyncHTTP.pm'}=1;
  package Slim::Networking::SimpleAsyncHTTP;
  our ($instance,$ssl,$body,$status); $ssl=1; $body='{"valid":true,"user_name":"tester"}'; $status=200;
@@ -9,6 +12,7 @@ BEGIN {
 }
 my $loaded=eval{require Plugins::ListenBrainzLove::Transport;1}; ok($loaded,'transport loads') or diag($@);
 if($loaded) {
+ {no warnings 'redefine';my $tick=0;*Plugins::ListenBrainzLove::Transport::_now=sub {$tick+=2}}
  my ($err,$data); my $cb=sub{($err,$data)=@_};
  Plugins::ListenBrainzLove::Transport::request('GET','https://api.listenbrainz.org/1/validate-token',{Authorization=>'Token fixture'},undef,$cb);
  ok(!$err && $data->{valid},'JSON decoded');

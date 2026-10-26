@@ -1,6 +1,9 @@
 use strict; use warnings; use utf8; use Test::More; use lib '.';
 use Plugins::ListenBrainzLove::Identity;
 BEGIN {
+ $INC{'Slim/Utils/Timers.pm'}=1;
+ package Slim::Utils::Timers;sub killTimers {} sub setTimer {die 'Unexpected timer in immediate-response fixture'}
+ package main;
  $INC{'Slim/Networking/SimpleAsyncHTTP.pm'}=1;
  package Slim::Networking::SimpleAsyncHTTP;
  our (@calls,$status);$status=200;
@@ -10,6 +13,7 @@ BEGIN {
  sub post {shift->get(@_)} sub code {$status} sub content {'{"status":"ok"}'}
 }
 use Plugins::ListenBrainzLove::Transport;
+{no warnings 'redefine';my $tick=0;*Plugins::ListenBrainzLove::Transport::_now=sub {$tick+=2}}
 my $mbid='11111111-2222-4333-8444-555555555555';
 my $msid='aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 my $origin='https://api.listenbrainz.org';
@@ -25,7 +29,8 @@ for my $case (
  ['GET',"$origin/1/feedback/user/tester/get-feedback-for-recordings?recording_msids=$msid",undef,1],
  ['GET',"$origin/1/feedback/user/tester/get-feedback-for-recordings?recording_mbids=$mbid,$mbid",undef,0],
  ['POST',"$origin/1/feedback/recording-feedback",{recording_mbid=>$mbid,recording_msid=>$msid,score=>1},1],
- ['POST',"$origin/1/feedback/recording-feedback",{recording_mbid=>$mbid,score=>0},0],
+ ['POST',"$origin/1/feedback/recording-feedback",{recording_mbid=>$mbid,score=>0},1],
+ ['POST',"$origin/1/feedback/recording-feedback",{recording_mbid=>$mbid,score=>-1},0],
  ['POST',"$origin/1/feedback/recording-feedback",{recording_mbid=>'invalid',score=>1},0],
  ['POST',"$origin/1/metadata/submit_manual_mapping",{recording_mbid=>$mbid,recording_msid=>$msid},0],
 ) {

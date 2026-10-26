@@ -12,10 +12,10 @@ root = pathlib.Path(__file__).resolve().parents[1]
 out = root / 'dist'
 stage = root / '.publication'
 version = ET.parse(root / 'Plugins/ListenBrainzLove/install.xml').findtext('version')
-assert version == '0.6.1', 'Review release metadata before changing version'
-# Keep each release reproducible, but advance file timestamps on new releases.
-# LMS persists compiled settings templates and uses source mtime to invalidate them.
-archive_timestamp = (2026, 10, 25, 19, 3, 44)
+assert version == '0.7.0', 'Review release metadata before changing version'
+# Advance the fixed timestamp on each release so LMS invalidates compiled
+# templates and assets, while repeated builds of this release stay identical.
+archive_timestamp = (2026, 10, 25, 19, 36, 0)
 repository = 'https://github.com/vysmaty/lyrion-listenbrainz-love'
 
 # Explicit publication allowlist: never archive arbitrary files from the worktree.
@@ -69,7 +69,8 @@ entries = [(p, p.relative_to(plugin_root).as_posix()) for p in files if plugin_r
 entries.extend((root / name, name) for name in ('README.md', 'README.en.md', 'LICENSE'))
 archive(plugin, entries)
 with zipfile.ZipFile(plugin) as z:
-    assert {'install.xml', 'Plugin.pm'} <= set(z.namelist())
+    assert {'install.xml', 'Plugin.pm',
+            'HTML/EN/plugins/ListenBrainzLove/html/material-love.js'} <= set(z.namelist())
 sha1 = hashlib.sha1(plugin.read_bytes()).hexdigest()
 
 extensions = ET.Element('extensions')

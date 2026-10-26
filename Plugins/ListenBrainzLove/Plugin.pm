@@ -11,16 +11,18 @@ use Slim::Schema;
 use Plugins::ListenBrainzLove::Core;
 my $prefs=preferences('plugin.listenbrainzlove');
 my $material_registered;
-my (%identity_cache,%pending);
+my (%identity_cache,%pending,%runtime_cache);
 sub getDisplayName { 'PLUGIN_LISTENBRAINZLOVE' }
 sub initPlugin {
  my ($class)=@_; $class->SUPER::initPlugin(@_);
+ Plugins::ListenBrainzLove::Transport::start() if $INC{'Plugins/ListenBrainzLove/Transport.pm'} && Plugins::ListenBrainzLove::Transport->can('start');
  $prefs->init({username=>'',token=>'',material_button=>0});
  Slim::Menu::TrackInfo->registerInfoProvider(listenbrainzLove => (after=>'top',func=>\&trackInfo));
  Slim::Control::Request::addDispatch(['listenbrainzlove','love','_index','_quantity'],[1,1,1,\&loveQuery]);
  Slim::Control::Request::addDispatch(['listenbrainzlove','state','_index','_quantity'],[1,1,1,\&stateQuery]);
  Slim::Control::Request::addDispatch(['listenbrainzlove','metadata'],[1,1,0,\&metadataQuery]);
  Slim::Control::Request::addDispatch(['listenbrainzlove','action'],[1,1,1,\&actionQuery]);
+ Slim::Control::Request::addDispatch(['listenbrainzlove','unlove'],[1,1,1,\&unloveQuery]);
  Slim::Control::Request::addDispatch(['listenbrainzlove','status'],[1,1,1,\&statusJsonQuery]);
  if (main::WEBUI()) { require Plugins::ListenBrainzLove::Settings; Plugins::ListenBrainzLove::Settings->new }
 }
@@ -35,15 +37,15 @@ sub postinitPlugin {
    icon=>'favorite_border',
    script=>Plugins::ListenBrainzLove::Material::loader('love'),
   });
-  Plugins::MaterialSkin::Plugin::registerCustomAction($section,{
-   title=>'ListenBrainz: Love status','title-cs'=>'ListenBrainz: Stav Love',icon=>'info_outline',
-   lmsbrowse=>{command=>['listenbrainzlove','state'],params=>['selected_id:$ITEMID']},
-  });
  }
  if (($prefs->get('material_button')||'') eq '1') {eval {Plugins::ListenBrainzLove::Material::configure(1)};warn 'ListenBrainzLove: Material button loader could not be installed' if $@}
  $material_registered=1;
 }
-sub shutdownPlugin { Slim::Menu::TrackInfo->deregisterInfoProvider('listenbrainzLove'); %identity_cache=(); %pending=() }
+sub shutdownPlugin {
+ Slim::Menu::TrackInfo->deregisterInfoProvider('listenbrainzLove');
+ Plugins::ListenBrainzLove::Transport::shutdown() if $INC{'Plugins/ListenBrainzLove/Transport.pm'} && Plugins::ListenBrainzLove::Transport->can('shutdown');
+ %identity_cache=();%pending=();%runtime_cache=();
+}
 sub capture {
  my ($client)=@_;
  die 'Not playing' unless $client && $client->isPlaying;
@@ -124,6 +126,11 @@ sub metadataQuery {
 }
 sub resultText {
  my ($result)=@_;
+ if (($result->{action}||'') eq 'unlove') {
+  return label('ListenBrainz: Love removed','ListenBrainz: Love zrušeno') if $result->{ok};
+  return label('ListenBrainz: Removal not verified. Refresh the Love status.','ListenBrainz: Zrušení není ověřené. Obnovte stav Love.') if $result->{uncertain};
+  return label('ListenBrainz: Could not remove Love: ','ListenBrainz: Love se nepodařilo zrušit: ').($result->{error}||'Unknown error');
+ }
  return label('ListenBrainz: Save not verified; the feedback may already be stored. Refresh its status.','ListenBrainz: Uložení není ověřené; Love už může být uložené. Obnovte stav.') if !$result->{ok} && $result->{uncertain};
  return label('ListenBrainz Love verified (MusicBrainz link not confirmed)','ListenBrainz: Love potvrzeno (propojení s MusicBrainz není potvrzené)') if $result->{ok} && $result->{identity} && !$result->{identity}{recording_mbid};
  return $result->{ok} ? label('ListenBrainz Love verified','ListenBrainz: Love potvrzeno') : (label('ListenBrainz Love failed: ','ListenBrainz: Love se nepodařilo uložit: ').($result->{error}||'Unknown error'));
@@ -158,6 +165,7 @@ sub jsonQuery {
  my $selected=selectedTrack($request);
  my $reply=sub {
   my ($result)=@_;
+  $result->{action}='unlove' if $write eq 'unlove';
   $request->addResult('ok',$result->{ok}?1:0);
   $request->addResult('uncertain',$result->{uncertain}?1:0);
   $request->addResult('message',$write?resultText($result):stateText($result));
@@ -168,9 +176,10 @@ sub jsonQuery {
  };
  return $reply->({ok=>0,error=>'The selected track is unavailable; open its menu again'}) unless $selected;
  $request->setStatusProcessing;
- return $write ? performLove($request->client,$reply,$selected) : performStatus($request->client,$reply,$selected);
+ return $write ? performLove($request->client,$reply,$selected,$write eq 'unlove'?'unlove':'love') : performStatus($request->client,$reply,$selected,($request->getParam('refresh')||'') eq '1');
 }
 sub actionQuery {jsonQuery($_[0],1)}
+sub unloveQuery {jsonQuery($_[0],'unlove')}
 sub statusJsonQuery {jsonQuery($_[0],0)}
 sub loveQuery {
  my ($request)=@_;
@@ -199,23 +208,23 @@ sub coreFor {
   for my $field (qw(artist title version mbid release duration tracknumber isrc url)) { return 0 if ($fresh->{$field}||'') ne ($clicked->{$field}||'') }
   return 1;
  };
- my $core=Plugins::ListenBrainzLove::Core->new(allow_playing_now=>$is_current->($snapshot)?1:0,is_current=>$is_current,cache=>\%identity_cache,transport=>sub { require Plugins::ListenBrainzLove::Transport; Plugins::ListenBrainzLove::Transport::request(@_) });
+ my $core=Plugins::ListenBrainzLove::Core->new(allow_playing_now=>$is_current->($snapshot)?1:0,is_current=>$is_current,cache=>\%identity_cache,state=>\%runtime_cache,transport=>sub { require Plugins::ListenBrainzLove::Transport; Plugins::ListenBrainzLove::Transport::request(@_) });
  return $core;
 }
 sub performLove {
- my ($client,$reply,$selected)=@_;
+ my ($client,$reply,$selected,$mode)=@_;$mode||='love';
  my $snapshot=eval {$selected ? _trackMetadata($client,$selected) : capture($client)};
  return $reply->({ok=>0,error=>'No reliable selected-track metadata; refresh after the provider loads it'}) unless $snapshot;
  my $player=eval {$client->id} || "$client";
  return $reply->({ok=>0,error=>'Love is already being verified; wait for the result'}) if $pending{$player};
  $pending{$player}=1;
- coreFor($client,$snapshot)->love($snapshot,$prefs->get('token'),$prefs->get('username'),sub {delete $pending{$player}; $reply->(shift)});
+ coreFor($client,$snapshot)->$mode($snapshot,$prefs->get('token'),$prefs->get('username'),sub {delete $pending{$player}; $reply->(shift)});
 }
 sub performStatus {
- my ($client,$reply,$selected)=@_;
+ my ($client,$reply,$selected,$refresh)=@_;
  my $snapshot=eval {$selected ? _trackMetadata($client,$selected) : _metadata($client)};
  return $reply->({ok=>0,error=>'No reliable selected-track metadata; refresh after the provider loads it'}) unless $snapshot;
- coreFor($client,$snapshot)->status($snapshot,$prefs->get('token'),$prefs->get('username'),$reply);
+ coreFor($client,$snapshot)->status($snapshot,$prefs->get('token'),$prefs->get('username'),$reply,{refresh=>$refresh?1:0});
 }
 sub stateQuery {
  my ($request)=@_;
@@ -240,7 +249,7 @@ sub stateQuery {
   $request->addResult('count',scalar @items);
   for my $index (0..$#items) {$request->addResultLoop('item_loop',$index,$_,$items[$index]{$_}) for sort keys %{$items[$index]}}
   $request->setStatusDone;
- },$selected);
+ },$selected,1);
 }
 sub trackInfo {
  my ($client,$url,$selected)=@_;
@@ -252,7 +261,7 @@ sub trackInfo {
   performLove($c,sub {my $r=shift;$cb->({items=>[{name=>resultText($r),type=>'text',icon=>iconFor($r)}]})},$selected);
  }},{name=>'ListenBrainz: Love status',type=>'link',url=>sub {
   my ($c,$cb)=@_;
-  performStatus($c,sub {my $r=shift;$cb->({items=>[{name=>stateText($r),type=>'text',icon=>iconFor($r)}]})},$selected);
+  performStatus($c,sub {my $r=shift;$cb->({items=>[{name=>stateText($r),type=>'text',icon=>iconFor($r)}]})},$selected,1);
  }}];
 }
 1;
