@@ -10,6 +10,10 @@ my $end='/* END ListenBrainzLove managed loader */';
 sub loader {
  my ($mode)=@_;
  my $call=$mode eq 'button' ? 'api.enableButton()' : 'api.love(pid,id)';
+ # Material evaluates action scripts directly in doCustomAction(action, player,
+ # item). Production builds rename its local parameters; arguments survives
+ # minification and keeps selected IDs as values rather than script substitutions.
+ my $args=$mode eq 'button' ? 'null,null' : "typeof arguments==='undefined'||!arguments[1]?null:arguments[1].id,typeof arguments==='undefined'||!arguments[2]?null:arguments[2].id";
  my $script=<<'JAVASCRIPT';
 (function(pid,id){
  function ready(){var api=window.ListenBrainzLoveMaterial;return __LB_CALL__;}
@@ -17,7 +21,7 @@ sub loader {
  if(!window.ListenBrainzLoveMaterialLoading){
   window.ListenBrainzLoveMaterialLoading=new Promise(function(resolve,reject){
    var script=document.createElement('script');
-   script.src='/plugins/ListenBrainzLove/html/material-love.js?v=0.7.0';
+   script.src='/plugins/ListenBrainzLove/html/material-love.js?v=0.7.1';
    script.onload=resolve;
    script.onerror=function(){window.ListenBrainzLoveMaterialLoading=null;reject(new Error('ListenBrainz UI unavailable'));};
    document.head.appendChild(script);
@@ -26,9 +30,10 @@ sub loader {
  window.ListenBrainzLoveMaterialLoading.then(ready).catch(function(){
   if(typeof bus!=='undefined'){bus.$emit('showError',undefined,'ListenBrainz: UI unavailable. Refresh and try again.',10);}
  });
-})(typeof player==='undefined'||!player?null:player.id,typeof item==='undefined'||!item?null:item.id);
+})(__LB_ARGS__);
 JAVASCRIPT
  $script=~s/__LB_CALL__/$call/;
+ $script=~s/__LB_ARGS__/$args/;
  return $script;
 }
 sub configure {

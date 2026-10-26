@@ -184,5 +184,11 @@ if ($state) {
  my $info=Plugins::ListenBrainzLove::Plugin::trackInfo($request->client,MaterialTrack->url);
  is(scalar @$info,2,'track details retain both Love and status entries');
  like($info->[1]{name},qr/Love status/,'status remains available in the song detail');
+ is_deeply($info->[0]{jive}{actions}{go},{cmd=>['listenbrainzlove','love'],params=>{selected_id=>'track_id:42',popup=>1},nextWindow=>'parent'},'song details use a direct selected-ID action and return to the parent with a result popup');
+ $request=MaterialRequest->new('42');$request->{params}{popup}=1;
+ local *Plugins::ListenBrainzLove::Core::love=sub {$_[4]->({ok=>1,score=>1})};
+ Plugins::ListenBrainzLove::Plugin::loveQuery($request);
+ is($request->{result}{item_loop}[0]{type},'text','popup result is a single text row so Material uses the verified message');
+ ok(!$request->{result}{item_loop}[0]{actions},'popup result cannot accidentally repeat a write');
 }
 done_testing;

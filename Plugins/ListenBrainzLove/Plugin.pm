@@ -184,13 +184,14 @@ sub statusJsonQuery {jsonQuery($_[0],0)}
 sub loveQuery {
  my ($request)=@_;
  my $selected=selectedTrack($request);
+ my $popup=($request->getParam('popup')||'') eq '1';
  my $reply=sub {
   $request->addResult('count',1);
   my $result=shift;
   $request->addResultLoop('item_loop',0,'text',resultText($result));
   $request->addResultLoop('item_loop',0,'icon',iconFor($result));
-  $request->addResultLoop('item_loop',0,'type',$selected?'link':'text');
-  $request->addResultLoop('item_loop',0,'actions',stateAction($selected->id)) if $selected;
+  $request->addResultLoop('item_loop',0,'type',$selected && !$popup?'link':'text');
+  $request->addResultLoop('item_loop',0,'actions',stateAction($selected->id)) if $selected && !$popup;
   $request->setStatusDone;
  };
  my $client=$request->client;
@@ -256,7 +257,9 @@ sub trackInfo {
  return unless $client && $url;
  $selected ||= Slim::Schema->objectForUrl({url=>$url});
  return unless $selected && $selected->url eq $url;
- return [{name=>'ListenBrainz: Love selected track',type=>'link',url=>sub {
+ return [{name=>'ListenBrainz: Love selected track',type=>'link',jive=>{actions=>{go=>{
+  cmd=>['listenbrainzlove','love'],params=>{selected_id=>'track_id:'.$selected->id,popup=>1},nextWindow=>'parent',
+ }}},url=>sub {
   my ($c,$cb)=@_;
   performLove($c,sub {my $r=shift;$cb->({items=>[{name=>resultText($r),type=>'text',icon=>iconFor($r)}]})},$selected);
  }},{name=>'ListenBrainz: Love status',type=>'link',url=>sub {

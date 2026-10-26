@@ -1,8 +1,8 @@
-# ListenBrainzLove 0.7.0
+# ListenBrainzLove 0.7.1
 
 Standalone Perl plugin for Lyrion Music Server 9.1.x. Explicitly Love a selected recording on ListenBrainz and verify the saved state, including a track that is not playing. Existing scrobblers continue to submit completed listens.
 
-Version 0.7.0 adds a shared API request queue, short-lived shared caches, and removal of Love from the playback heart.
+Version 0.7.1 fixes selected queue actions in production Material Skin and adds a verified result popup to the song-detail Love action. It retains the shared API request queue, short-lived shared caches and removal of Love from the playback heart.
 
 ## Use
 
@@ -12,7 +12,7 @@ Enable the optional desktop heart in plugin settings to show verified current-tr
 
 This opt-in integration adds a marked loader to the documented `prefs/material-skin/custom.js`, preserving existing content and backing it up as `custom.js.before-listenbrainzlove` when present. Disabling the option removes only the managed block. Reload Material after changes; disable before uninstalling. No Material core files or star ratings are modified. The footer button is desktop-only; mobile context actions remain available. With the option off, custom.js is untouched.
 
-Standard TrackInfo provides **ListenBrainz: Love selected track** and a separate status link. Love works with stopped playback or an empty queue when LMS knows the selected recording and reliable metadata. An inactive remote selection requires a known positive track duration, avoiding indefinite radio stations. Refresh after provider metadata loads. Invalid/expired IDs never fall back to loving the current recording. No automatic migration is introduced.
+Standard TrackInfo provides **ListenBrainz: Love selected track** and a separate status link. In Material the Love action shows the verified result in a popup and retains the song details; other clients keep the OPML callback. Love works with stopped playback or an empty queue when LMS knows the selected recording and reliable metadata. An inactive remote selection requires a known positive track duration, avoiding indefinite radio stations. Refresh after provider metadata loads. Invalid/expired IDs never fall back to loving the current recording. No automatic migration is introduced.
 
 ## Identity flow
 
@@ -35,9 +35,9 @@ Add under **Settings → Plugins → Additional repositories**, apply, select **
 
 `https://raw.githubusercontent.com/vysmaty/lyrion-listenbrainz-love/main/repo.xml`
 
-Configure username/token in plugin settings. Empty token input preserves the saved token; validation checks ownership. Minimum declared LMS 9.1.0; integration targets 9.1.1. Repository: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), release `v0.7.0`.
+Configure username/token in plugin settings. Empty token input preserves the saved token; validation checks ownership. Minimum declared LMS 9.1.0; integration targets 9.1.1. Repository: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), release `v0.7.1`.
 
-The exact generated `ListenBrainzLove-0.7.0.zip` has `install.xml` at root. `repo.xml` points to the immutable `dist-v0.7.0` distribution tag and contains SHA-1 of complete ZIP bytes. SHA-256 is provided separately. GitHub's automatic source archive is not an installable plugin ZIP.
+The exact generated `ListenBrainzLove-0.7.1.zip` has `install.xml` at root. `repo.xml` points to the immutable `dist-v0.7.1` distribution tag and contains SHA-1 of complete ZIP bytes. SHA-256 is provided separately. GitHub's automatic source archive is not an installable plugin ZIP.
 
 ## Safety and diagnostics
 
@@ -49,7 +49,7 @@ Tokens are stored in ordinary unencrypted local LMS preferences; protect adminis
 
 ## Verification and build
 
-`prove -v t` (Perl plus Node.js for UI tests): **25 files, 539 assertions, PASS**. Covers queue timing, cooldown, expiry/shutdown, cache TTL/coalescing/invalidation, verified removal and UI interactions, plus MBID/MSID priority, lookup before the first scrobble, Unicode, conflicting versions, bounds, targeted readback, uncertain POST, non-playing selection and preventing fake playing-now, with two real local TCP/HTTP fake providers. No real account or feedback writes are used by these tests.
+`prove -v t` (Perl plus Node.js for UI tests): **26 files, 559 assertions, PASS**. Covers queue timing, cooldown, expiry/shutdown, cache TTL/coalescing/invalidation, verified removal and UI interactions, plus MBID/MSID priority, lookup before the first scrobble, Unicode, conflicting versions, bounds, targeted readback, uncertain POST, non-playing selection and preventing fake playing-now, with two real local TCP/HTTP fake providers. No real account or feedback writes are used by these tests.
 
 `python tools/build.py` runs tests and creates the plugin/source ZIPs, checksums, generated repo.xml and clean allowlisted `.publication/` sources. Local diagnostic notes and listening evidence are excluded. The build never publishes or deploys.
 
