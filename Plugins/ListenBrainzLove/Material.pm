@@ -21,7 +21,7 @@ sub loader {
  if(!window.ListenBrainzLoveMaterialLoading){
   window.ListenBrainzLoveMaterialLoading=new Promise(function(resolve,reject){
    var script=document.createElement('script');
-   script.src='/plugins/ListenBrainzLove/html/material-love.js?v=0.7.2';
+   script.src='/plugins/ListenBrainzLove/html/material-love.js?v=0.7.3';
    script.onload=resolve;
    script.onerror=function(){window.ListenBrainzLoveMaterialLoading=null;reject(new Error('ListenBrainz UI unavailable'));};
    document.head.appendChild(script);

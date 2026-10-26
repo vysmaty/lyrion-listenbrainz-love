@@ -4,14 +4,14 @@
     <title lang="EN">ListenBrainzLove</title>
   </details>
   <plugins>
-    <plugin name="ListenBrainzLove" version="0.7.2" minTarget="9.1.0" maxTarget="*">
+    <plugin name="ListenBrainzLove" version="0.7.3" minTarget="9.1.0" maxTarget="*">
       <title lang="EN">ListenBrainz Love</title>
       <desc lang="EN">Explicit ListenBrainz Love with exact recording verification; no scrobbling.</desc>
       <creator>ListenBrainzLove contributors</creator>
       <category>tools</category>
       <link>https://github.com/vysmaty/lyrion-listenbrainz-love</link>
-      <url>https://raw.githubusercontent.com/vysmaty/lyrion-listenbrainz-love/dist-v0.7.2/dist/ListenBrainzLove-0.7.2.zip</url>
-      <sha>335bccfeb44dd9ca0eaa60474a82c5f3fb007d49</sha>
+      <url>https://raw.githubusercontent.com/vysmaty/lyrion-listenbrainz-love/dist-v0.7.3/dist/ListenBrainzLove-0.7.3.zip</url>
+      <sha>781a19c419d4f0f66868ba18f347c85e89ef271f</sha>
     </plugin>
   </plugins>
 </extensions>

@@ -260,7 +260,7 @@ sub trackInfo {
  # Leave type unset: Material infers a text action from go.nextWindow.
  # A link instead enters browseDoClick and bypasses its popup handler.
  return [{name=>'ListenBrainz: Love selected track',jive=>{actions=>{go=>{
-  cmd=>['listenbrainzlove','love'],params=>{selected_id=>'track_id:'.$selected->id,popup=>1},nextWindow=>'parent',
+  cmd=>['listenbrainzlove','love'],params=>{selected_id=>'track_id:'.$selected->id,popup=>1},nextWindow=>'refresh',
  }}},url=>sub {
   my ($c,$cb)=@_;
   performLove($c,sub {my $r=shift;$cb->({items=>[{name=>resultText($r),type=>'text',icon=>iconFor($r)}]})},$selected);
