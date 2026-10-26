@@ -257,7 +257,9 @@ sub trackInfo {
  return unless $client && $url;
  $selected ||= Slim::Schema->objectForUrl({url=>$url});
  return unless $selected && $selected->url eq $url;
- return [{name=>'ListenBrainz: Love selected track',type=>'link',jive=>{actions=>{go=>{
+ # Leave type unset: Material infers a text action from go.nextWindow.
+ # A link instead enters browseDoClick and bypasses its popup handler.
+ return [{name=>'ListenBrainz: Love selected track',jive=>{actions=>{go=>{
   cmd=>['listenbrainzlove','love'],params=>{selected_id=>'track_id:'.$selected->id,popup=>1},nextWindow=>'parent',
  }}},url=>sub {
   my ($c,$cb)=@_;
