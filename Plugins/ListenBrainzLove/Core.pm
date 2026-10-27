@@ -157,7 +157,7 @@ sub _run {
  };
  $lookup=sub {
   my ($recent)=@_;
-  my $path=$recent ? '/listens?count=100&min_ts='.($now-300) : '/playing-now';
+  my $path=$recent ? '/listens?count=100&min_ts='.int($now-300) : '/playing-now';
   $request->('GET',"/1/user/$user$path",1,undef,sub {
    my ($data)=@_;
    return $fail->('Invalid listen payload') unless ref($data->{payload}) eq 'HASH' && ref($data->{payload}{listens}) eq 'ARRAY';

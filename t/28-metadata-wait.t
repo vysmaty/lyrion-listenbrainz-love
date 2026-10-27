@@ -68,4 +68,13 @@ like($result->{error},qr/expired/,'expiry is explicit before any write');
 $core=Plugins::ListenBrainzLove::Core->new(clock=>sub {$now},deadline=>$now+22,transport=>sub {$requests++;$options=$_[5]});
 $core->love($snapshot,'fixture','tester',sub {});
 is($options->{deadline},$now+22,'provider waiting time remains part of the original 30-second operation budget');
+my @paths;
+$core=Plugins::ListenBrainzLove::Core->new(clock=>sub {1000.25},transport=>sub {
+ my($method,$url,$headers,$body,$cb)=@_;push @paths,$url;
+ return $cb->(undef,{valid=>1,user_name=>'tester'}) if $url=~/validate-token$/;
+ $cb->(undef,{payload=>{listens=>[]}});
+});
+$core->status($snapshot,'fixture','tester',sub {});
+my ($recent)=grep {/min_ts=/} @paths;
+like($recent,qr{/listens\?count=100&min_ts=\d+\z},'high-resolution operation clock still sends integer listen timestamps');
 done_testing;

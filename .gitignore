@@ -33,6 +33,7 @@ __pycache__/
 !/dist/ListenBrainzLove-0.7.2.zip
 !/dist/ListenBrainzLove-0.7.3.zip
 !/dist/ListenBrainzLove-0.7.4.zip
+!/dist/ListenBrainzLove-0.7.5.zip
 # Local diagnostic notes can contain details of the owner's listening history.
 /docs/IDENTITY-RESEARCH.md
 /docs/SCROBBLER-COMPARISON.md

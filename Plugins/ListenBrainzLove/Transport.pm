@@ -113,7 +113,7 @@ sub _perform {
   options=>{SSL_verify_mode=>1,SSL_verifycn_scheme=>'http',SSL_verifycn_name=>'api.listenbrainz.org',SSL_hostname=>'api.listenbrainz.org'},
  })};
  return $finish->('Provider network error',undef) unless $http;
- my %headers=(%$headers,Accept=>'application/json','User-Agent'=>'ListenBrainzLove/0.7.4 (+https://github.com/vysmaty/lyrion-listenbrainz-love)');
+ my %headers=(%$headers,Accept=>'application/json','User-Agent'=>'ListenBrainzLove/0.7.5 (+https://github.com/vysmaty/lyrion-listenbrainz-love)');
  my @h=map {($_,$headers{$_})} sort keys %headers;
  return $finish->('Provider snapshot changed',undef) if ref($entry->{before_send}) eq 'CODE' && !eval {$entry->{before_send}->()};
  return $finish->('Provider request expired',undef) if _now()>=$entry->{deadline};
