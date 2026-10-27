@@ -182,8 +182,8 @@ if ($state) {
  Plugins::ListenBrainzLove::Plugin::statusJsonQuery($request);
  is_deeply($options,{refresh=>1},'explicit JSON refresh bypasses only the short feedback cache');
  my $info=Plugins::ListenBrainzLove::Plugin::trackInfo($request->client,MaterialTrack->url);
- is(scalar @$info,2,'track details retain both Love and status entries');
- like($info->[1]{name},qr/Love status/,'status remains available in the song detail');
+ is_deeply([map {$_->{name}} @$info],['ListenBrainz: Love track','ListenBrainz: Unlove track','ListenBrainz: Love status'],'track details always expose both explicit actions and a separate read-only status');
+ like($info->[2]{name},qr/Love status/,'status remains available in the song detail');
  is_deeply($info->[0]{jive}{actions}{go},{cmd=>['listenbrainzlove','love',0,1],params=>{selected_id=>'track_id:42',popup=>1},nextWindow=>'refresh'},'native text command includes list positions before tagged selection/popup parameters');
  ok(!exists($info->[0]{type}) && !exists($info->[0]{icon}) && !exists($info->[0]{style}),'Material can infer a text action; an explicit link would bypass its popup handler');
  $request=MaterialRequest->new('42');$request->{params}{popup}=1;
@@ -194,22 +194,31 @@ if ($state) {
  is_deeply($request->{result}{item_loop}[0]{actions}{go},{cmd=>['listenbrainzlove','state',0,1],params=>{selected_id=>'track_id:42'}},'popup result can only read status and supplies its own list positions');
  require JSON::PP;
  my $node=$ENV{NODE_BIN}||'node';
- my %client_item=map {$_=>$info->[0]{$_}} grep {exists $info->[0]{$_}} qw(name type icon style jive);
+ is_deeply($info->[1]{jive}{actions}{go},{cmd=>['listenbrainzlove','unlove'],params=>{selected_id=>'track_id:42',popup=>1},nextWindow=>'refresh'},'native Unlove retains tag-only command syntax and the exact selected ID');
+ local *Plugins::ListenBrainzLove::Core::unlove=sub {$snapshot=$_[1];$_[4]->($popup_result)};
  my $language='EN';
  local *MaterialPrefs::get=sub {$_[1] eq 'language'?$language:$_[1] eq 'token'?'fixture':'tester'};
+ for my $index (0,1) {
+ my %client_item=map {$_=>$info->[$index]{$_}} grep {exists $info->[$index]{$_}} qw(name type icon style jive);
+ my $query=$index?\&Plugins::ListenBrainzLove::Plugin::unloveQuery:\&Plugins::ListenBrainzLove::Plugin::loveQuery;
  for my $case (
-  ['EN','42',{ok=>1,score=>1}],
+  ['EN','42',{ok=>1,score=>$index?0:1}],
   ['EN','42',{ok=>0,error=>'Provider request failed'}],
   ['EN','42',{ok=>0,uncertain=>1,error=>'Readback failed'}],
-  ['CS','42',{ok=>1,score=>1}],
+  ['CS','42',{ok=>1,score=>$index?0:1}],
   ['CS','bad',{ok=>0}],
  ) {
   ($language,my $selected,$popup_result)=@$case;
   $request=MaterialRequest->new($selected);$request->{params}{popup}=1;
-  Plugins::ListenBrainzLove::Plugin::loveQuery($request);
+  $query->($request);
   open my $popup_test,'|-',$node,'t/27-material-popup.cjs' or die "Cannot start Node: $!";
   print {$popup_test} JSON::PP::encode_json({item=>\%client_item,result=>$request->{result}});
   ok(close($popup_test),'complete installed Material parser and handlers display the operation result without leaving details');
  }
+ }
+ $language='EN';$popup_result={ok=>1,score=>0};
+ my $legacy;
+ $info->[1]{url}->($request->client,sub {$legacy=shift});
+ like($legacy->{items}[0]{name},qr/Love removed/,'legacy TrackInfo callback also performs verified removal');
 }
 done_testing;

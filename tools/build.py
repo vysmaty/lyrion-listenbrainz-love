@@ -12,14 +12,14 @@ root = pathlib.Path(__file__).resolve().parents[1]
 out = root / 'dist'
 stage = root / '.publication'
 version = ET.parse(root / 'Plugins/ListenBrainzLove/install.xml').findtext('version')
-assert version == '0.7.6', 'Review release metadata before changing version'
+assert version == '0.7.7', 'Review release metadata before changing version'
 # Advance the fixed timestamp on each release so LMS invalidates compiled
 # templates and assets, while repeated builds of this release stay identical.
-archive_timestamp = (2026, 10, 27, 20, 17, 0)
+archive_timestamp = (2026, 10, 27, 20, 28, 0)
 repository = 'https://github.com/vysmaty/lyrion-listenbrainz-love'
 
 # Explicit publication allowlist: never archive arbitrary files from the worktree.
-files = [root / n for n in ('.gitattributes', '.gitignore', 'LICENSE', 'README.md', 'README.en.md')]
+files = [root / n for n in ('.gitattributes', '.gitignore', 'LICENSE', 'README.md', 'README.cs.md')]
 for directory, pattern in (('Plugins/ListenBrainzLove', '*.pm'),
                            ('Plugins/ListenBrainzLove', '*.xml'),
                            ('Plugins/ListenBrainzLove', '*.txt'),
@@ -66,7 +66,7 @@ def archive(path, entries):
 plugin = out / f'ListenBrainzLove-{version}.zip'
 plugin_root = root / 'Plugins/ListenBrainzLove'
 entries = [(p, p.relative_to(plugin_root).as_posix()) for p in files if plugin_root in p.parents]
-entries.extend((root / name, name) for name in ('README.md', 'README.en.md', 'LICENSE'))
+entries.extend((root / name, name) for name in ('README.md', 'README.cs.md', 'LICENSE'))
 archive(plugin, entries)
 with zipfile.ZipFile(plugin) as z:
     assert {'install.xml', 'Plugin.pm',

@@ -144,4 +144,14 @@ for my $selected ('track_id:999','','artist_id:73','73x') {
  is(scalar @Slim::Utils::Timers::timers,0,'completed metadata preparation leaves no timer');
 }
 
+{
+ local $Plugins::ListenBrainzLove::Transport::score=0;
+ @Plugins::ListenBrainzLove::Transport::calls=();
+ $request=SelectedRequest->new('73');$request->{params}{popup}=1;
+ Plugins::ListenBrainzLove::Plugin::unloveQuery($request);
+ like($request->{result}{item_loop}[0]{text},qr/Love removed/,'native Unlove verifies removal from the inactive selected recording');
+ my @posts=grep {$_->[0] eq 'POST'} @Plugins::ListenBrainzLove::Transport::calls;
+ is_deeply([map {$_->[2]} @posts],[{recording_mbid=>$target,score=>0}],'Unlove writes exactly score zero to the selected recording, never dislike or the playing track');
+ ok(!grep($_->[1]=~/submit-listens/,@Plugins::ListenBrainzLove::Transport::calls),'native Unlove never announces playback');
+}
 done_testing;

@@ -181,15 +181,19 @@ sub jsonQuery {
  return $write ? performLove($request->client,$reply,$selected,$write eq 'unlove'?'unlove':'love') : performStatus($request->client,$reply,$selected,($request->getParam('refresh')||'') eq '1');
 }
 sub actionQuery {jsonQuery($_[0],1)}
-sub unloveQuery {jsonQuery($_[0],'unlove')}
+sub unloveQuery {
+ return ($_[0]->getParam('popup')||'') eq '1' ? trackFeedbackQuery($_[0],'unlove') : jsonQuery($_[0],'unlove');
+}
 sub statusJsonQuery {jsonQuery($_[0],0)}
-sub loveQuery {
- my ($request)=@_;
+sub loveQuery {trackFeedbackQuery($_[0],'love')}
+sub trackFeedbackQuery {
+ my ($request,$mode)=@_;
  my $selected=selectedTrack($request);
  my $popup=($request->getParam('popup')||'') eq '1';
  my $reply=sub {
   $request->addResult('count',1);
   my $result=shift;
+  $result->{action}=$mode;
   $request->addResultLoop('item_loop',0,'text',resultText($result));
   # Material converts text with an image to type=other, which makes its
   # nextWindow popup fall back to the action title instead of this result.
@@ -204,7 +208,7 @@ sub loveQuery {
  my $client=$request->client;
  return $reply->({ok=>0,error=>'The selected track is unavailable; open its menu again'}) unless $selected;
  $request->setStatusProcessing;
- performLove($client,$reply,$selected);
+ performLove($client,$reply,$selected,$mode);
 }
 sub stateAction {
  my ($id,$direct)=@_;
@@ -289,18 +293,22 @@ sub trackInfo {
  return unless $client && $url;
  $selected ||= Slim::Schema->objectForUrl({url=>$url});
  return unless $selected && $selected->url eq $url;
- # Leave type unset: Material infers a text action from go.nextWindow.
- # A link instead enters browseDoClick and bypasses its popup handler.
- return [{name=>'ListenBrainz: Love selected track',jive=>{actions=>{go=>{
-  # Text actions call lmsCommand rather than lmsList. Supply the positional
-  # index/count here so LMS does not consume selected_id and popup as them.
-  cmd=>['listenbrainzlove','love',0,1],params=>{selected_id=>'track_id:'.$selected->id,popup=>1},nextWindow=>'refresh',
- }}},url=>sub {
-  my ($c,$cb)=@_;
-  performLove($c,sub {my $r=shift;$cb->({items=>[{name=>resultText($r),type=>'text',icon=>iconFor($r)}]})},$selected);
- }},{name=>'ListenBrainz: Love status',type=>'link',url=>sub {
+ return [trackInfoAction($selected,'love'),trackInfoAction($selected,'unlove'),{name=>'ListenBrainz: Love status',type=>'link',url=>sub {
   my ($c,$cb)=@_;
   performStatus($c,sub {my $r=shift;$cb->({items=>[{name=>stateText($r),type=>'text',icon=>iconFor($r)}]})},$selected,1);
  }}];
+}
+sub trackInfoAction {
+ my ($selected,$mode)=@_;
+ my $verb=$mode eq 'unlove'?'Unlove':'Love';
+ # Leave type unset so Material infers a text action and handles its popup.
+ # Only the Love browse command takes positional index/count arguments;
+ # Unlove retains its existing tag-only JSON command contract.
+ return {name=>"ListenBrainz: $verb track",jive=>{actions=>{go=>{
+  cmd=>['listenbrainzlove',$mode,($mode eq 'love'?(0,1):())],params=>{selected_id=>'track_id:'.$selected->id,popup=>1},nextWindow=>'refresh',
+ }}},url=>sub {
+  my ($c,$cb)=@_;
+  performLove($c,sub {my $r=shift;$r->{action}=$mode;$cb->({items=>[{name=>resultText($r),type=>'text',icon=>iconFor($r)}]})},$selected,$mode);
+ }};
 }
 1;

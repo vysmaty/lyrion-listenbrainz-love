@@ -30,7 +30,9 @@ assert.equal(source.type,undefined,'Source row must allow Material to infer a te
 assert.equal(source.icon,undefined);
 assert.equal(source.style,undefined);
 assert.equal(source.jive.actions.go.nextWindow,'refresh');
-assert.deepEqual(source.jive.actions.go.cmd,['listenbrainzlove','love',0,1], 'Plain text commands must supply both LMS positional parameters before any tags');
+const removal=source.name==='ListenBrainz: Unlove track';
+assert.equal(source.name,removal?'ListenBrainz: Unlove track':'ListenBrainz: Love track');
+assert.deepEqual(source.jive.actions.go.cmd,removal?['listenbrainzlove','unlove']:['listenbrainzlove','love',0,1], 'Native action respects its existing dispatch positional/tagged contract');
 const item={title:source.name,actions:source.jive.actions};
 let refreshes=0;
 const view={history:[{id:'home'}],$store:{state:{desktopLayout:true}},refreshList:()=>refreshes++};

@@ -121,3 +121,10 @@ Version 0.7.5 corrects a regression discovered during the 0.7.4 live read-only d
 Material 6.4.14 adds a `<div style="margin-top:16px;margin-bottom:16px">` wrapper to a single non-actionable text response in `parseBrowseResp`, then forwards that title unchanged to the plain-text `showMessage` snackbar. The previous regression removed tags before comparing, masking the literal HTML shown to users. It now compares the complete emitted string exactly, including Czech messages and an invalid selection.
 
 Popup-mode results remain a single text row without an image and include a genuine read-only status action. Material therefore preserves the plain title without adding its standalone-page HTML wrapper. The native `nextWindow:refresh` still consumes the result and retains song details. If another client follows the result action, it can only read status; it supplies both required list positions and can never repeat Love. An invalid selection has no selected-ID parameter and cannot fall back to the playing track. Non-popup browse result behavior is unchanged. No skin source, HTML rendering or additional API requests are introduced.
+
+
+## TrackInfo removal and default English documentation (0.7.7)
+
+TrackInfo always exposes Love track, Unlove track and the existing read-only status link. Rendering the menu only builds static actions for its selected track ID; it does not fetch feedback. Both manual actions share the verified native text popup path and retain legacy OPML callbacks. Love keeps its index/count command positions; Unlove preserves the existing tag-only command and JSON response unless explicitly invoked with `popup:1`. This keeps the footer removal contract intact. Native Unlove reuses Core score-zero removal and targeted readback, never dislike or playing-now. Tests cover inactive selection, exact target, one zero-score write, both native result pipelines and the legacy removal callback.
+
+The default README.md is now English, with README.cs.md retaining the Czech guide. Both documents link to the other language and both are included in the plugin and source archives.
