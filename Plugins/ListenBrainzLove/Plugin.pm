@@ -195,7 +195,10 @@ sub loveQuery {
   # nextWindow popup fall back to the action title instead of this result.
   $request->addResultLoop('item_loop',0,'icon',iconFor($result)) unless $popup;
   $request->addResultLoop('item_loop',0,'type',$selected && !$popup?'link':'text');
-  $request->addResultLoop('item_loop',0,'actions',stateAction($selected->id)) if $selected && !$popup;
+  # Material wraps a lone non-actionable text row in an HTML div before
+  # forwarding it to its plain-text snackbar. A genuine read-only status
+  # action keeps the result plain, without permitting another Love write.
+  $request->addResultLoop('item_loop',0,'actions',stateAction($selected?$selected->id:undef,$popup)) if $selected || $popup;
   $request->setStatusDone;
  };
  my $client=$request->client;
@@ -203,7 +206,10 @@ sub loveQuery {
  $request->setStatusProcessing;
  performLove($client,$reply,$selected);
 }
-sub stateAction { return {go=>{cmd=>['listenbrainzlove','state'],params=>{selected_id=>'track_id:'.$_[0]}}} }
+sub stateAction {
+ my ($id,$direct)=@_;
+ return {go=>{cmd=>['listenbrainzlove','state',($direct?(0,1):())],defined($id)?(params=>{selected_id=>'track_id:'.$id}):()}};
+}
 sub coreFor {
  my ($client,$snapshot,$deadline)=@_;
  my $clicked_url=$snapshot->{url};

@@ -1,8 +1,8 @@
-# ListenBrainzLove 0.7.5
+# ListenBrainzLove 0.7.6
 
 Samostatný Perl plugin pro Lyrion Music Server 9.1.x. Ručně označí vybranou nahrávku jako **Love** na ListenBrainz a ověří uložený stav. Skladba nemusí právě hrát. Dokončené poslechy dál odesílá stávající scrobbler.
 
-Verze 0.7.5 opravuje první Love nepřehrávané skladby s dosud nenačtenými metadaty a skutečný výsledek popupu z detailu skladby. Zachovává společnou frontu API požadavků, sdílenou cache a rušení Love kliknutím na plné srdíčko. Stav Love zůstává v detailu skladby, místní nabídka obsahuje jen přímé Love. Zachovává dokumentovaný metadata lookup, přednost dostupného recording MBID před MSID a cílené ověření konkrétní nahrávky. ISRC se zachytí, pokud ho poskytovatel vrací; samostatný ISRC resolver tato verze nezavádí.
+Verze 0.7.6 opravuje HTML značky zobrazované v popupu z detailu skladby. Potvrzení i chyby jsou čistý text. Zachovává čekání na dosud nenačtená metadata nepřehrávané skladby. Zachovává společnou frontu API požadavků, sdílenou cache a rušení Love kliknutím na plné srdíčko. Stav Love zůstává v detailu skladby, místní nabídka obsahuje jen přímé Love. Zachovává dokumentovaný metadata lookup, přednost dostupného recording MBID před MSID a cílené ověření konkrétní nahrávky. ISRC se zachytí, pokud ho poskytovatel vrací; samostatný ISRC resolver tato verze nezavádí.
 
 ## Použití
 
@@ -44,9 +44,9 @@ Do **Settings → Plugins → Additional repositories** přidat:
 
 Použít změny, vybrat **ListenBrainz Love** a nainstalovat/restartovat podle výzvy. V nastavení pluginu zadat ListenBrainz username a token. Prázdné pole tokenu při uložení zachová stávající hodnotu. Ověřuje se platnost tokenu i vlastník účtu.
 
-Minimální verze je deklarovaná 9.1.0; integrační ověření cílí na Lyrion 9.1.1. Veřejný projekt: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), vydání `v0.7.5`.
+Minimální verze je deklarovaná 9.1.0; integrační ověření cílí na Lyrion 9.1.1. Veřejný projekt: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), vydání `v0.7.6`.
 
-Repozitář používá přesně sestavený standardní plugin ZIP s `install.xml` v kořeni a SHA-1 celých bajtů ZIPu. `repo.xml` odkazuje na distribuční tag `dist-v0.7.5`; samostatný SHA-256 je v manifestu. GitHub source ZIP není instalační balíček.
+Repozitář používá přesně sestavený standardní plugin ZIP s `install.xml` v kořeni a SHA-1 celých bajtů ZIPu. `repo.xml` odkazuje na distribuční tag `dist-v0.7.6`; samostatný SHA-256 je v manifestu. GitHub source ZIP není instalační balíček.
 
 ## Bezpečnost a diagnostika
 
@@ -58,9 +58,9 @@ Token je uložený v běžných lokálních LMS preferences, nikoli šifrovaný;
 
 ## Ověření a build
 
-`prove -v t` (Perl + Node.js pro UI testy): **27 souborů, 592 assertions, PASS**. Regrese zahrnují rozestupy fronty, cooldown, expiraci a vypnutí, životnost a souběh cache, její zneplatnění při změně Love, ověřené rušení Love a klikání na srdíčko. Dále přednost MBID před MSID, lookup před prvním scroblem, české znaky, jiné verze, bezpečné limity, cílený readback, neověřený POST, nepřehrávaný výběr, zákaz falešného playing-now a dva skutečné lokální TCP/HTTP fake servery. Tyto testy nepoužívají skutečný účet ani skutečné Like zápisy.
+`prove -v t` (Perl + Node.js pro UI testy): **27 souborů, 594 assertions, PASS**. Regrese zahrnují rozestupy fronty, cooldown, expiraci a vypnutí, životnost a souběh cache, její zneplatnění při změně Love, ověřené rušení Love a klikání na srdíčko. Dále přednost MBID před MSID, lookup před prvním scroblem, české znaky, jiné verze, bezpečné limity, cílený readback, neověřený POST, nepřehrávaný výběr, zákaz falešného playing-now a dva skutečné lokální TCP/HTTP fake servery. Tyto testy nepoužívají skutečný účet ani skutečné Like zápisy.
 
-`python tools/build.py` spustí testy a vytvoří `dist/ListenBrainzLove-0.7.5.zip`, source ZIP, manifesty, `repo.xml` a čistou kopii publikovatelných zdrojů v `.publication/`. Zdrojový balíček neobsahuje lokální diagnostické poznámky, listening-history evidence ani credentials. Build nic nepublikuje ani nenasazuje.
+`python tools/build.py` spustí testy a vytvoří `dist/ListenBrainzLove-0.7.6.zip`, source ZIP, manifesty, `repo.xml` a čistou kopii publikovatelných zdrojů v `.publication/`. Zdrojový balíček neobsahuje lokální diagnostické poznámky, listening-history evidence ani credentials. Build nic nepublikuje ani nenasazuje.
 
 Testovací Perl nemá IO::Socket::SSL: testy transportu používají facades a nevydávají se za reálný TLS handshake. Před vydáním je potřeba doplnit ověření v cílovém LMS a Material Skin; skutečný feedback lze ověřit ručním kliknutím uživatele.
 

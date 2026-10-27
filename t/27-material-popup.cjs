@@ -36,7 +36,7 @@ let refreshes=0;
 const view={history:[{id:'home'}],$store:{state:{desktopLayout:true}},refreshList:()=>refreshes++};
 const row=input.result.item_loop[0];
 assert.equal(row.type,'text');
-assert.equal(row.actions,undefined);
+assert.deepEqual(row.actions.go.cmd,['listenbrainzlove','state',0,1],'Result can only read status, never repeat Love');
 assert.equal(input.result.count,1);
 const vm=require('node:vm');
 const context={bus,queryParams:{party:false},LMS_KIOSK_MODE:false,LMS_VERSION:90101,
@@ -60,4 +60,4 @@ context.browseHandleTextClickResponse(view,item,{command:item.actions.go.cmd},da
 assert.equal(refreshes,1,'Native text action refreshes the current detail view');
 assert.equal(calls.length,1);
 assert.equal(calls[0][0],'showMessage');
-assert.equal(calls[0][1].replace(/<[^>]*>/g,''),row.text,'Popup shows the verified operation result');
+assert.equal(calls[0][1],row.text,'Popup receives the exact plain result without HTML markup');

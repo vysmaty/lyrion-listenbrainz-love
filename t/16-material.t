@@ -191,13 +191,21 @@ if ($state) {
  local *Plugins::ListenBrainzLove::Core::love=sub {$_[4]->($popup_result)};
  Plugins::ListenBrainzLove::Plugin::loveQuery($request);
  is($request->{result}{item_loop}[0]{type},'text','popup result is a single text row so Material uses the verified message');
- ok(!$request->{result}{item_loop}[0]{actions},'popup result cannot accidentally repeat a write');
+ is_deeply($request->{result}{item_loop}[0]{actions}{go},{cmd=>['listenbrainzlove','state',0,1],params=>{selected_id=>'track_id:42'}},'popup result can only read status and supplies its own list positions');
  require JSON::PP;
  my $node=$ENV{NODE_BIN}||'node';
  my %client_item=map {$_=>$info->[0]{$_}} grep {exists $info->[0]{$_}} qw(name type icon style jive);
- for my $result ({ok=>1,score=>1},{ok=>0,error=>'Provider request failed'},{ok=>0,uncertain=>1,error=>'Readback failed'}) {
-  $popup_result=$result;
-  $request=MaterialRequest->new('42');$request->{params}{popup}=1;
+ my $language='EN';
+ local *MaterialPrefs::get=sub {$_[1] eq 'language'?$language:$_[1] eq 'token'?'fixture':'tester'};
+ for my $case (
+  ['EN','42',{ok=>1,score=>1}],
+  ['EN','42',{ok=>0,error=>'Provider request failed'}],
+  ['EN','42',{ok=>0,uncertain=>1,error=>'Readback failed'}],
+  ['CS','42',{ok=>1,score=>1}],
+  ['CS','bad',{ok=>0}],
+ ) {
+  ($language,my $selected,$popup_result)=@$case;
+  $request=MaterialRequest->new($selected);$request->{params}{popup}=1;
   Plugins::ListenBrainzLove::Plugin::loveQuery($request);
   open my $popup_test,'|-',$node,'t/27-material-popup.cjs' or die "Cannot start Node: $!";
   print {$popup_test} JSON::PP::encode_json({item=>\%client_item,result=>$request->{result}});
