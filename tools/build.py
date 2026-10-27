@@ -12,10 +12,10 @@ root = pathlib.Path(__file__).resolve().parents[1]
 out = root / 'dist'
 stage = root / '.publication'
 version = ET.parse(root / 'Plugins/ListenBrainzLove/install.xml').findtext('version')
-assert version == '0.7.3', 'Review release metadata before changing version'
+assert version == '0.7.4', 'Review release metadata before changing version'
 # Advance the fixed timestamp on each release so LMS invalidates compiled
 # templates and assets, while repeated builds of this release stay identical.
-archive_timestamp = (2026, 10, 26, 7, 7, 0)
+archive_timestamp = (2026, 10, 27, 20, 0, 0)
 repository = 'https://github.com/vysmaty/lyrion-listenbrainz-love'
 
 # Explicit publication allowlist: never archive arbitrary files from the worktree.

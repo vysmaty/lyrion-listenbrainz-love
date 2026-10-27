@@ -1,7 +1,11 @@
 use strict; use warnings; use Test::More; use lib '.';
 BEGIN {
  sub WEBUI {0}
- for my $pkg (qw(Slim::Plugin::Base Slim::Utils::Prefs Slim::Menu::TrackInfo Slim::Player::ProtocolHandlers Slim::Control::Request Slim::Schema Plugins::ListenBrainzLove::Transport)) { (my $file="$pkg.pm")=~s{::}{/}g; $INC{$file}=1 }
+ for my $pkg (qw(Slim::Plugin::Base Slim::Utils::Prefs Slim::Menu::TrackInfo Slim::Player::ProtocolHandlers Slim::Control::Request Slim::Schema Slim::Utils::Timers Plugins::ListenBrainzLove::Transport)) { (my $file="$pkg.pm")=~s{::}{/}g; $INC{$file}=1 }
+ package Slim::Utils::Timers;
+ our @timers;
+ sub setTimer {push @timers,[@_]}
+ sub killTimers {my($owner,$cb)=@_;@timers=grep {$_->[0] ne $owner || $_->[2] ne $cb} @timers}
  package Slim::Plugin::Base; sub initPlugin {}
  package Slim::Utils::Prefs; sub import {no strict 'refs'; *{caller().'::preferences'}=sub {bless {},'SelectedPrefs'}}
  package SelectedPrefs; sub get {$_[1] eq 'token' ? 'fixture' : 'tester'}
@@ -111,4 +115,33 @@ for my $selected ('track_id:999','','artist_id:73','73x') {
  ok($menu,'TrackInfo provides Love for a non-playing recording');
  if ($menu) {my $result;$menu->[0]{url}->(bless({},'SelectedClient'),sub {$result=shift});like($result->{items}[0]{name},qr/Love verified/,'TrackInfo loves its own selected track')}
 }
+{
+ no warnings qw(redefine once);
+ my ($ready,$calls)=(0,0);
+ local *SelectedHandler::getMetadataFor=sub {
+  my($class,$client,$url,@flags)=@_;push @SelectedHandler::calls,[$url,@flags];
+  return {icon=>'tidal.png'} unless $ready;
+  return {artist=>'Selected Artist',title=>'Selected Song',album=>'Selected Album',duration=>201};
+ };
+ @Plugins::ListenBrainzLove::Transport::calls=();
+ $request=SelectedRequest->new('73');$love->($request);
+ is($request->{status},'processing','cold remote selection waits for artist/title instead of failing the first click');
+ is(scalar @Plugins::ListenBrainzLove::Transport::calls,0,'metadata preparation sends no ListenBrainz requests');
+ my $duplicate=SelectedRequest->new('73');$love->($duplicate);
+ like($duplicate->{result}{item_loop}[0]{text},qr/already being verified/,'write lock covers metadata preparation');
+ $ready=1;
+ # Provider completion can happen after playback has changed. Selection stays 73.
+ local $SelectedClient::current=74;
+ my $guard=0;
+ while (@Slim::Utils::Timers::timers && ++$guard<20) {
+  my $timer=shift @Slim::Utils::Timers::timers;$timer->[2]->($timer->[0]);
+ }
+ is($request->{status},'done','first click completes after the provider cache is populated');
+ like($request->{result}{item_loop}[0]{text},qr/Love verified/,'cold selection receives the verified result');
+ my @posts=grep {$_->[0] eq 'POST'} @Plugins::ListenBrainzLove::Transport::calls;
+ is_deeply([map {$_->[2]} @posts],[{recording_mbid=>$target,score=>1}],'exactly one feedback write targets the originally selected recording');
+ ok(!grep($_->[1]=~/submit-listens/,@Plugins::ListenBrainzLove::Transport::calls),'cold inactive selection cannot announce playback');
+ is(scalar @Slim::Utils::Timers::timers,0,'completed metadata preparation leaves no timer');
+}
+
 done_testing;

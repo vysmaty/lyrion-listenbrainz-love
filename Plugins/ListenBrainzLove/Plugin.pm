@@ -9,6 +9,7 @@ use Slim::Player::ProtocolHandlers;
 use Slim::Control::Request;
 use Slim::Schema;
 use Plugins::ListenBrainzLove::Core;
+use Time::HiRes ();
 my $prefs=preferences('plugin.listenbrainzlove');
 my $material_registered;
 my (%identity_cache,%pending,%runtime_cache);
@@ -44,6 +45,7 @@ sub postinitPlugin {
 sub shutdownPlugin {
  Slim::Menu::TrackInfo->deregisterInfoProvider('listenbrainzLove');
  Plugins::ListenBrainzLove::Transport::shutdown() if $INC{'Plugins/ListenBrainzLove/Transport.pm'} && Plugins::ListenBrainzLove::Transport->can('shutdown');
+ Plugins::ListenBrainzLove::Metadata::shutdown() if $INC{'Plugins/ListenBrainzLove/Metadata.pm'};
  %identity_cache=();%pending=();%runtime_cache=();
 }
 sub capture {
@@ -189,7 +191,9 @@ sub loveQuery {
   $request->addResult('count',1);
   my $result=shift;
   $request->addResultLoop('item_loop',0,'text',resultText($result));
-  $request->addResultLoop('item_loop',0,'icon',iconFor($result));
+  # Material converts text with an image to type=other, which makes its
+  # nextWindow popup fall back to the action title instead of this result.
+  $request->addResultLoop('item_loop',0,'icon',iconFor($result)) unless $popup;
   $request->addResultLoop('item_loop',0,'type',$selected && !$popup?'link':'text');
   $request->addResultLoop('item_loop',0,'actions',stateAction($selected->id)) if $selected && !$popup;
   $request->setStatusDone;
@@ -201,7 +205,7 @@ sub loveQuery {
 }
 sub stateAction { return {go=>{cmd=>['listenbrainzlove','state'],params=>{selected_id=>'track_id:'.$_[0]}}} }
 sub coreFor {
- my ($client,$snapshot)=@_;
+ my ($client,$snapshot,$deadline)=@_;
  my $clicked_url=$snapshot->{url};
  my $is_current=sub {
   my ($clicked)=@_; my $fresh=eval {capture($client)};
@@ -209,23 +213,45 @@ sub coreFor {
   for my $field (qw(artist title version mbid release duration tracknumber isrc url)) { return 0 if ($fresh->{$field}||'') ne ($clicked->{$field}||'') }
   return 1;
  };
- my $core=Plugins::ListenBrainzLove::Core->new(allow_playing_now=>$is_current->($snapshot)?1:0,is_current=>$is_current,cache=>\%identity_cache,state=>\%runtime_cache,transport=>sub { require Plugins::ListenBrainzLove::Transport; Plugins::ListenBrainzLove::Transport::request(@_) });
+ my $core=Plugins::ListenBrainzLove::Core->new(deadline=>$deadline,clock=>sub {Time::HiRes::time()},allow_playing_now=>$is_current->($snapshot)?1:0,is_current=>$is_current,cache=>\%identity_cache,state=>\%runtime_cache,transport=>sub { require Plugins::ListenBrainzLove::Transport; Plugins::ListenBrainzLove::Transport::request(@_) });
  return $core;
+}
+sub prepareMetadata {
+ my ($client,$selected,$reply)=@_;
+ # Freeze the selected source before yielding to the provider. Never capture
+ # a replacement now-playing track when its asynchronous metadata arrives.
+ $selected ||= eval {$client->isPlaying && $client->playingSong->currentTrack};
+ my $url=eval {$selected->url};
+ return $reply->(undef) unless $url;
+ my $capture=sub {die 'Selection changed' unless $selected->url eq $url;_trackMetadata($client,$selected)};
+ my $snapshot=eval {$capture->()};
+ return $reply->($snapshot) if $snapshot && !grep {!Plugins::ListenBrainzLove::Identity::text($snapshot->{$_})} qw(artist title);
+ return $reply->(undef) unless $snapshot && $selected->remote;
+ require Plugins::ListenBrainzLove::Metadata;
+ Plugins::ListenBrainzLove::Metadata::wait($capture,$reply);
 }
 sub performLove {
  my ($client,$reply,$selected,$mode)=@_;$mode||='love';
- my $snapshot=eval {$selected ? _trackMetadata($client,$selected) : capture($client)};
- return $reply->({ok=>0,error=>'No reliable selected-track metadata; refresh after the provider loads it'}) unless $snapshot;
+ my $deadline=Time::HiRes::time()+30;
  my $player=eval {$client->id} || "$client";
  return $reply->({ok=>0,error=>'Love is already being verified; wait for the result'}) if $pending{$player};
  $pending{$player}=1;
- coreFor($client,$snapshot)->$mode($snapshot,$prefs->get('token'),$prefs->get('username'),sub {delete $pending{$player}; $reply->(shift)});
+ my $finished=0;
+ my $finish=sub {return if $finished++;delete $pending{$player};$reply->(shift)};
+ prepareMetadata($client,$selected,sub {
+  my $snapshot=shift;
+  return $finish->({ok=>0,error=>'No reliable selected-track metadata; refresh after the provider loads it'}) unless $snapshot;
+  coreFor($client,$snapshot,$deadline)->$mode($snapshot,$prefs->get('token'),$prefs->get('username'),$finish);
+ });
 }
 sub performStatus {
  my ($client,$reply,$selected,$refresh)=@_;
- my $snapshot=eval {$selected ? _trackMetadata($client,$selected) : _metadata($client)};
- return $reply->({ok=>0,error=>'No reliable selected-track metadata; refresh after the provider loads it'}) unless $snapshot;
- coreFor($client,$snapshot)->status($snapshot,$prefs->get('token'),$prefs->get('username'),$reply,{refresh=>$refresh?1:0});
+ my $deadline=Time::HiRes::time()+30;
+ prepareMetadata($client,$selected,sub {
+  my $snapshot=shift;
+  return $reply->({ok=>0,error=>'No reliable selected-track metadata; refresh after the provider loads it'}) unless $snapshot;
+  coreFor($client,$snapshot,$deadline)->status($snapshot,$prefs->get('token'),$prefs->get('username'),$reply,{refresh=>$refresh?1:0});
+ });
 }
 sub stateQuery {
  my ($request)=@_;
@@ -260,7 +286,9 @@ sub trackInfo {
  # Leave type unset: Material infers a text action from go.nextWindow.
  # A link instead enters browseDoClick and bypasses its popup handler.
  return [{name=>'ListenBrainz: Love selected track',jive=>{actions=>{go=>{
-  cmd=>['listenbrainzlove','love'],params=>{selected_id=>'track_id:'.$selected->id,popup=>1},nextWindow=>'refresh',
+  # Text actions call lmsCommand rather than lmsList. Supply the positional
+  # index/count here so LMS does not consume selected_id and popup as them.
+  cmd=>['listenbrainzlove','love',0,1],params=>{selected_id=>'track_id:'.$selected->id,popup=>1},nextWindow=>'refresh',
  }}},url=>sub {
   my ($c,$cb)=@_;
   performLove($c,sub {my $r=shift;$cb->({items=>[{name=>resultText($r),type=>'text',icon=>iconFor($r)}]})},$selected);

@@ -22,6 +22,7 @@ sub _run {
  my ($self,$mode,$input,$token,$user,$done,$options)=@_;
  my $clock=$self->{clock}||sub{time};
  my $now=$clock->();
+ my $deadline=defined($self->{deadline}) && $self->{deadline}<$now+30 ? $self->{deadline} : $now+30;
  my ($finished,$write_started)=(0,0);
  my ($lookup,$metadata_lookup,$fallback);
  my ($state,$credential_key,$status_key,$pending_key,$generation);
@@ -64,7 +65,7 @@ sub _run {
  my $wanted=$mode eq 'unlove'?0:1;
  my $request=sub {
   my ($method,$path,$auth,$body,$cb)=@_;
-  return $fail->('Click expired; click Love again') if $clock->()-$now>30;
+  return $fail->('Click expired; click Love again') if $clock->()>=$deadline;
   my $called=0;
   my $ok=eval {
    $self->{transport}->($method,'https://api.listenbrainz.org'.$path,$auth?{Authorization=>'Token '.$token}:{},$body,sub {
@@ -75,10 +76,10 @@ sub _run {
     return $fail->('ListenBrainz rate limit; wait briefly and refresh the status') if defined($error) && $error eq 'Provider rate limit; retry shortly';
     return $fail->($write_started?'Feedback could not be verified; write may have succeeded':'Provider request failed') if $error;
     return $fail->('Invalid provider payload') unless ref($data) eq 'HASH';
-    return $fail->('Click expired; click Love again') if $clock->()-$now>30;
+    return $fail->('Click expired; click Love again') if $clock->()>=$deadline;
     my $valid=eval {$cb->($data);1};
     $fail->('Invalid provider payload') unless $valid;
-   },{deadline=>$now+30,$path eq '/1/submit-listens?return_msid=true'?(before_send=>sub {ref($self->{is_current}) eq 'CODE' && $self->{is_current}->($track)}):()}); 1;
+   },{deadline=>$deadline,$path eq '/1/submit-listens?return_msid=true'?(before_send=>sub {ref($self->{is_current}) eq 'CODE' && $self->{is_current}->($track)}):()}); 1;
   };
   $fail->('Provider request failed') unless $ok;
  };

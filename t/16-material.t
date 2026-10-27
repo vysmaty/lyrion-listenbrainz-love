@@ -184,18 +184,24 @@ if ($state) {
  my $info=Plugins::ListenBrainzLove::Plugin::trackInfo($request->client,MaterialTrack->url);
  is(scalar @$info,2,'track details retain both Love and status entries');
  like($info->[1]{name},qr/Love status/,'status remains available in the song detail');
- is_deeply($info->[0]{jive}{actions}{go},{cmd=>['listenbrainzlove','love'],params=>{selected_id=>'track_id:42',popup=>1},nextWindow=>'refresh'},'song details use a direct selected-ID action and refresh the details after the result popup');
+ is_deeply($info->[0]{jive}{actions}{go},{cmd=>['listenbrainzlove','love',0,1],params=>{selected_id=>'track_id:42',popup=>1},nextWindow=>'refresh'},'native text command includes list positions before tagged selection/popup parameters');
  ok(!exists($info->[0]{type}) && !exists($info->[0]{icon}) && !exists($info->[0]{style}),'Material can infer a text action; an explicit link would bypass its popup handler');
  $request=MaterialRequest->new('42');$request->{params}{popup}=1;
- local *Plugins::ListenBrainzLove::Core::love=sub {$_[4]->({ok=>1,score=>1})};
+ my $popup_result={ok=>1,score=>1};
+ local *Plugins::ListenBrainzLove::Core::love=sub {$_[4]->($popup_result)};
  Plugins::ListenBrainzLove::Plugin::loveQuery($request);
  is($request->{result}{item_loop}[0]{type},'text','popup result is a single text row so Material uses the verified message');
  ok(!$request->{result}{item_loop}[0]{actions},'popup result cannot accidentally repeat a write');
  require JSON::PP;
  my $node=$ENV{NODE_BIN}||'node';
- open my $popup_test,'|-',$node,'t/27-material-popup.cjs' or die "Cannot start Node: $!";
  my %client_item=map {$_=>$info->[0]{$_}} grep {exists $info->[0]{$_}} qw(name type icon style jive);
- print {$popup_test} JSON::PP::encode_json({item=>\%client_item,result=>$request->{result}});
- ok(close($popup_test),'the installed Material popup helper confirms the result and retains the song details');
+ for my $result ({ok=>1,score=>1},{ok=>0,error=>'Provider request failed'},{ok=>0,uncertain=>1,error=>'Readback failed'}) {
+  $popup_result=$result;
+  $request=MaterialRequest->new('42');$request->{params}{popup}=1;
+  Plugins::ListenBrainzLove::Plugin::loveQuery($request);
+  open my $popup_test,'|-',$node,'t/27-material-popup.cjs' or die "Cannot start Node: $!";
+  print {$popup_test} JSON::PP::encode_json({item=>\%client_item,result=>$request->{result}});
+  ok(close($popup_test),'complete installed Material parser and handlers display the operation result without leaving details');
+ }
 }
 done_testing;
