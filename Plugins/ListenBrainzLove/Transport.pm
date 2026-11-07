@@ -21,6 +21,15 @@ sub _delay {
  }
  return $default;
 }
+sub _observe_rate_limit {
+ my ($response)=@_;
+ return unless defined($response);
+ my $code=$response->code;
+ my $limited=defined($code) && $code==429;
+ my $remaining=_header($response,'X-RateLimit-Remaining');
+ $blocked_until=_now()+_delay($response,$limited ? 30 : 1) if $limited || (defined($remaining) && $remaining eq '0');
+ return $limited;
+}
 sub request {
  my ($method,$url,$headers,$body,$done,$options)=@_;
  # Only feedback and a single timestamp-free playing_now are writable.
@@ -95,12 +104,8 @@ sub _perform {
  my $finish=sub {return if $called++;my @reply=$stopped?('Provider stopped',undef):@_;$busy=0;eval {$done->(@reply)};_pump()};
  my $http=eval {Slim::Networking::SimpleAsyncHTTP->new(sub {
   my ($response)=@_;
-  if ($response->code==429) {
-   $blocked_until=_now()+_delay($response,30);
-   return $finish->('Provider rate limit; retry shortly',undef);
-  }
-  my $remaining=_header($response,'X-RateLimit-Remaining');
-  $blocked_until=_now()+_delay($response,1) if defined($remaining) && $remaining eq '0';
+  return if $called;
+  return $finish->('Provider rate limit; retry shortly',undef) if _observe_rate_limit($response);
   return $finish->('Provider authentication failed',undef) if $response->code==401 || $response->code==403;
   return $finish->('Provider HTTP error',undef) unless $response->code==200;
   my $text=$response->content;
@@ -108,12 +113,17 @@ sub _perform {
   my $data=eval {decode_json($text)};
   return $finish->('Invalid provider JSON',undef) if $@ || ref($data) ne 'HASH';
   $finish->(undef,$data);
- },sub {$finish->('Provider network error',undef)}, {
+ },sub {
+  my (undef,undef,$response)=@_;
+  return if $called;
+  return $finish->('Provider rate limit; retry shortly',undef) if _observe_rate_limit($response);
+  $finish->('Provider network error',undef);
+ }, {
   timeout=>8,maxRedirect=>0,
   options=>{SSL_verify_mode=>1,SSL_verifycn_scheme=>'http',SSL_verifycn_name=>'api.listenbrainz.org',SSL_hostname=>'api.listenbrainz.org'},
  })};
  return $finish->('Provider network error',undef) unless $http;
- my %headers=(%$headers,Accept=>'application/json','User-Agent'=>'ListenBrainzLove/0.7.7 (+https://github.com/vysmaty/lyrion-listenbrainz-love)');
+ my %headers=(%$headers,Accept=>'application/json','User-Agent'=>'ListenBrainzLove/0.7.8 ( https://github.com/vysmaty/lyrion-listenbrainz-love )');
  my @h=map {($_,$headers{$_})} sort keys %headers;
  return $finish->('Provider snapshot changed',undef) if ref($entry->{before_send}) eq 'CODE' && !eval {$entry->{before_send}->()};
  return $finish->('Provider request expired',undef) if _now()>=$entry->{deadline};

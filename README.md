@@ -1,10 +1,10 @@
-# ListenBrainzLove 0.7.7
+# ListenBrainzLove 0.7.8
 
 [Česky](README.cs.md)
 
 Standalone Perl plugin for Lyrion Music Server 9.1.x. Explicitly Love a selected recording on ListenBrainz and verify the saved state, including a track that is not playing. Existing scrobblers continue to submit completed listens.
 
-Version 0.7.7 adds **ListenBrainz: Unlove track** to song details and shortens the add action to **ListenBrainz: Love track**. Both actions show verified results in a plain-text popup. This is the default English documentation; the Czech version is linked above.
+Version 0.7.8 honors HTTP 429 cooldowns delivered through the LMS error callback. The plugin also sends its name, version and maintainer contact URL in the documented ListenBrainz User-Agent format.
 
 ## Use
 
@@ -37,9 +37,9 @@ Add under **Settings → Plugins → Additional repositories**, apply, select **
 
 `https://raw.githubusercontent.com/vysmaty/lyrion-listenbrainz-love/main/repo.xml`
 
-Configure username/token in plugin settings. Empty token input preserves the saved token; validation checks ownership. Minimum declared LMS 9.1.0; integration targets 9.1.1. Repository: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), release `v0.7.7`.
+Configure username/token in plugin settings. Empty token input preserves the saved token; validation checks ownership. Minimum declared LMS 9.1.0; integration targets 9.1.1. Repository: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), release `v0.7.8`.
 
-The exact generated `ListenBrainzLove-0.7.7.zip` has `install.xml` at root. `repo.xml` points to the immutable `dist-v0.7.7` distribution tag and contains SHA-1 of complete ZIP bytes. SHA-256 is provided separately. GitHub's automatic source archive is not an installable plugin ZIP.
+The exact generated `ListenBrainzLove-0.7.8.zip` has `install.xml` at root. `repo.xml` points to the immutable `dist-v0.7.8` distribution tag and contains SHA-1 of complete ZIP bytes. SHA-256 is provided separately. GitHub's automatic source archive is not an installable plugin ZIP.
 
 ## Safety and diagnostics
 
@@ -51,7 +51,7 @@ Tokens are stored in ordinary unencrypted local LMS preferences; protect adminis
 
 ## Verification and build
 
-`prove -v t` (Perl plus Node.js for UI tests): **27 files, 604 assertions, PASS**. Covers queue timing, cooldown, expiry/shutdown, cache TTL/coalescing/invalidation, verified removal and UI interactions, plus MBID/MSID priority, lookup before the first scrobble, Unicode, conflicting versions, bounds, targeted readback, uncertain POST, non-playing selection and preventing fake playing-now, with two real local TCP/HTTP fake providers. No real account or feedback writes are used by these tests.
+`prove -v t` (Perl plus Node.js for UI tests): **27 files, 616 assertions, PASS**. Covers queue timing, cooldown, expiry/shutdown, cache TTL/coalescing/invalidation, verified removal and UI interactions, plus MBID/MSID priority, lookup before the first scrobble, Unicode, conflicting versions, bounds, targeted readback, uncertain POST, non-playing selection and preventing fake playing-now, with two real local TCP/HTTP fake providers. No real account or feedback writes are used by these tests.
 
 `python tools/build.py` runs tests and creates the plugin/source ZIPs, checksums, generated repo.xml and clean allowlisted `.publication/` sources. Local diagnostic notes and listening evidence are excluded. The build never publishes or deploys.
 

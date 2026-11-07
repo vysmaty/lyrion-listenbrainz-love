@@ -17,6 +17,9 @@ if($loaded) {
  Plugins::ListenBrainzLove::Transport::request('GET','https://api.listenbrainz.org/1/validate-token',{Authorization=>'Token fixture'},undef,$cb);
  ok(!$err && $data->{valid},'JSON decoded');
  my $i=$Slim::Networking::SimpleAsyncHTTP::instance;
+ my (undef,%headers)=@{$i->{req}};
+ like($headers{'User-Agent'},qr{\AListenBrainzLove/\d+\.\d+\.\d+ \( https://github\.com/vysmaty/lyrion-listenbrainz-love \)\z},
+  'ListenBrainz requests identify the plugin, version and maintainer contact URL');
  is($i->{params}{timeout},8,'8 second timeout'); is($i->{params}{maxRedirect},0,'no redirects');
  is($i->{params}{options}{SSL_verify_mode},1,'force TLS verification');
  is($i->{params}{options}{SSL_verifycn_name},'api.listenbrainz.org','force hostname check');
