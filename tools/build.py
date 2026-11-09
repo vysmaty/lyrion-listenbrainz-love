@@ -19,6 +19,7 @@ if version is None or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version):
 # templates and assets, while repeated builds of this release stay identical.
 archive_timestamp = (2026, 11, 9, 12, 0, 0)
 repository = 'https://github.com/vysmaty/lyrion-listenbrainz-love'
+distribution = 'https://raw.githubusercontent.com/vysmaty/lyrion-listenbrainz-love'
 
 # Explicit publication allowlist: never archive arbitrary files from the worktree.
 files = [root / n for n in ('.gitattributes', '.gitignore', 'LICENSE', 'README.md', 'README.cs.md')]
@@ -29,7 +30,7 @@ for directory, pattern in (('Plugins/ListenBrainzLove', '*.pm'),
                            ('Plugins/ListenBrainzLove', '*.svg'),
                            ('Plugins/ListenBrainzLove', '*.js'),
                            ('t', '*.t'), ('t', '*.cjs'), ('t/fixtures', '*.pm'),
-                           ('tools', '*.py'), ('docs', '*.md')):
+                           ('tools', '*.py'), ('tools', 'publish-dist.sh'), ('docs', '*.md')):
     local_notes = {'IDENTITY-RESEARCH.md', 'SCROBBLER-COMPARISON.md'}
     files.extend(sorted(p for p in (root / directory).rglob(pattern)
                         if p.name not in local_notes))
@@ -86,7 +87,7 @@ ET.SubElement(entry, 'title', lang='EN').text = 'ListenBrainz Love'
 ET.SubElement(entry, 'desc', lang='EN').text = 'Explicit ListenBrainz Love with exact recording verification; no scrobbling.'
 for tag, text in (('creator', 'ListenBrainzLove contributors'), ('category', 'tools'),
                   ('link', repository),
-                  ('url', f'{repository}/releases/download/v{version}/{plugin.name}'),
+                  ('url', f'{distribution}/dist-v{version}/dist/{plugin.name}'),
                   ('sha', sha1)):
     ET.SubElement(entry, tag).text = text
 ET.indent(extensions, space='  ')

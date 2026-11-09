@@ -39,7 +39,7 @@ Add under **Settings → Plugins → Additional repositories**, apply, select **
 
 Configure username/token in plugin settings. Empty token input preserves the saved token; validation checks ownership. Minimum declared LMS 9.1.0; integration targets 9.1.1. Repository: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), release `v0.7.9`.
 
-The installer `ListenBrainzLove-0.7.9.zip` has `install.xml` at its root. `repo.xml` points directly to the GitHub Release attachment and contains the SHA-1 of the complete ZIP. The release also provides SHA-256 checksums. Use the named installer attachment for manual installations.
+The installer `ListenBrainzLove-0.7.9.zip` has `install.xml` at its root. `repo.xml` points to the raw ZIP at the `dist-v0.7.9` tag and contains its SHA-1. GitHub Releases provides the same installer for manual installation and publishes SHA-256 checksums.
 
 ## Safety and diagnostics
 
@@ -55,7 +55,7 @@ Tokens are stored in ordinary unencrypted local LMS preferences; protect adminis
 
 `python tools/build.py` runs tests and writes the installer, source ZIP, checksums and generated manifest to `dist/`. The build prepares the allowlisted sources in `.publication/` and excludes local diagnostic notes and listening evidence.
 
-To release, update the version in `install.xml`, the User-Agent, the Material loader and both READMEs. Advance the fixed ZIP timestamp in `tools/build.py` so LMS refreshes its caches. Push a matching `vX.Y.Z` tag on a commit from `main`. The Release workflow publishes the ZIPs, downloads and verifies the installer, then commits the updated `repo.xml` to `main`.
+To release, update the version in `install.xml`, the User-Agent, the Material loader and both READMEs. Advance the fixed ZIP timestamp in `tools/build.py` so LMS refreshes its caches. Push a matching `vX.Y.Z` tag on a commit from `main`. The Release workflow publishes the ZIPs and creates a separate `dist-vX.Y.Z` tag for the installer. It verifies both downloads before committing `repo.xml` to `main`.
 
 The test Perl lacks IO::Socket::SSL; transport facades are not a live TLS handshake. Target LMS and Material verification is a separate release check; an actual user click verifies a real feedback write.
 

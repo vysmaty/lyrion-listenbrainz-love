@@ -48,7 +48,7 @@ Použít změny, vybrat **ListenBrainz Love** a nainstalovat/restartovat podle v
 
 Minimální verze je deklarovaná 9.1.0; integrační ověření cílí na Lyrion 9.1.1. Veřejný projekt: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), vydání `v0.7.9`.
 
-Instalační ZIP má `install.xml` v kořeni. `repo.xml` odkazuje přímo na přílohu vydání na GitHubu a obsahuje SHA-1 celého ZIPu. Vydání obsahuje také kontrolní součty SHA-256. Pro ruční instalaci použij pojmenovanou přílohu s instalačním ZIPem.
+Instalační ZIP má `install.xml` v kořeni. `repo.xml` odkazuje na raw ZIP z tagu `dist-v0.7.9` a obsahuje jeho SHA-1. GitHub Releases nabízí stejný instalační ZIP pro ruční instalaci a kontrolní součty SHA-256.
 
 ## Bezpečnost a diagnostika
 
@@ -64,7 +64,7 @@ Token je uložený v běžných lokálních LMS preferences, nikoli šifrovaný;
 
 `python tools/build.py` spustí testy a do `dist/` uloží instalační a zdrojový ZIP, kontrolní součty a vygenerovaný manifest. V `.publication/` připraví publikovatelné zdroje a vynechá lokální diagnostické poznámky a záznamy o poslechu.
 
-Před vydáním aktualizuj verzi v `install.xml`, User-Agentu, loaderu Materialu a obou README. Posuň pevný čas ZIPu v `tools/build.py`, aby LMS obnovil cache. Odešli odpovídající tag `vX.Y.Z` na commitu z větve `main`. Akce Release zveřejní ZIPy, stáhne a ověří instalační balíček a poté zapíše aktualizovaný `repo.xml` do `main`.
+Před vydáním aktualizuj verzi v `install.xml`, User-Agentu, loaderu Materialu a obou README. Posuň pevný čas ZIPu v `tools/build.py`, aby LMS obnovil cache. Odešli odpovídající tag `vX.Y.Z` na commitu z větve `main`. Akce Release zveřejní ZIPy a vytvoří samostatný tag `dist-vX.Y.Z` pro instalační ZIP. Obě adresy ověří stažením, potom aktualizuje `repo.xml` ve větvi `main`.
 
 Testovací Perl nemá IO::Socket::SSL: testy transportu používají facades a nevydávají se za reálný TLS handshake. Před vydáním je potřeba doplnit ověření v cílovém LMS a Material Skin; skutečný feedback lze ověřit ručním kliknutím uživatele.
 

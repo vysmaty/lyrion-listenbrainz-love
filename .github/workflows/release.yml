@@ -41,10 +41,17 @@ jobs:
             gh release create "$GITHUB_REF_NAME" "${assets[@]}" --verify-tag --generate-notes
           fi
 
+          verify_installer() {
+            curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+              --retry 4 --retry-all-errors --max-time 30 --output "$RUNNER_TEMP/release.zip" "$1"
+            cmp "$plugin" "$RUNNER_TEMP/release.zip"
+          }
+          verify_installer "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/${plugin##*/}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          bash tools/publish-dist.sh "$GITHUB_REF_NAME" "$plugin"
           url=$(python3 -c 'import xml.etree.ElementTree as ET; print(ET.parse("dist/repo.xml").findtext("./plugins/plugin/url"))')
-          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
-            --retry 4 --retry-all-errors --max-time 30 --output "$RUNNER_TEMP/release.zip" "$url"
-          cmp "$plugin" "$RUNNER_TEMP/release.zip"
+          verify_installer "$url"
 
           git fetch origin refs/heads/main:refs/remotes/origin/main
           git switch --detach origin/main
@@ -58,6 +65,5 @@ jobs:
             exit 0
           fi
           git add -- repo.xml
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
-            commit -m "chore: advertise ListenBrainzLove $version"
+          git commit -m "chore: advertise ListenBrainzLove $version"
           git push origin HEAD:refs/heads/main
