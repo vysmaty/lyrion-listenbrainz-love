@@ -12,12 +12,13 @@ import xml.etree.ElementTree as ET
 root = pathlib.Path(__file__).resolve().parents[1]
 out = root / 'dist'
 stage = root / '.publication'
-version = ET.parse(root / 'Plugins/ListenBrainzLove/install.xml').findtext('version')
+install = ET.parse(root / 'Plugins/ListenBrainzLove/install.xml').getroot()
+version = install.findtext('version')
 if version is None or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version):
     raise SystemExit('install.xml must contain a numeric X.Y.Z version')
 # Advance the fixed timestamp on each release so LMS invalidates compiled
 # templates and assets, while repeated builds of this release stay identical.
-archive_timestamp = (2026, 11, 9, 12, 0, 0)
+archive_timestamp = (2026, 11, 9, 20, 54, 0)
 repository = 'https://github.com/vysmaty/lyrion-listenbrainz-love'
 distribution = 'https://raw.githubusercontent.com/vysmaty/lyrion-listenbrainz-love'
 
@@ -85,7 +86,7 @@ entry = ET.SubElement(plugins, 'plugin', name='ListenBrainzLove', version=versio
                       minTarget='9.1.0', maxTarget='*')
 ET.SubElement(entry, 'title', lang='EN').text = 'ListenBrainz Love'
 ET.SubElement(entry, 'desc', lang='EN').text = 'Explicit ListenBrainz Love with exact recording verification; no scrobbling.'
-for tag, text in (('creator', 'ListenBrainzLove contributors'), ('category', 'tools'),
+for tag, text in (('creator', install.findtext('creator')), ('category', 'tools'),
                   ('link', repository),
                   ('url', f'{distribution}/dist-v{version}/dist/{plugin.name}'),
                   ('sha', sha1)):

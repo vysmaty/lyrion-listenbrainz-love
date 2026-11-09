@@ -1,71 +1,54 @@
-# ListenBrainzLove 0.7.9
+# ListenBrainzLove 0.8.0
 
 [English](README.md)
 
-Samostatný Perl plugin pro Lyrion Music Server 9.1.x. Ručně označí vybranou nahrávku jako **Love** na ListenBrainz a ověří uložený stav. Skladba nemusí právě hrát. Dokončené poslechy dál odesílá stávající scrobbler.
+ListenBrainzLove je plugin pro Lyrion Music Server (LMS), který přidá nebo zruší **Love** na ListenBrainz a ověří uložený stav. Vybranou skladbu můžeš označit i při zastaveném přehrávání, pokud ji LMS dokáže identifikovat. Dokončené poslechy dál odesílá stávající scrobbler.
 
-Verze 0.7.9 vydává instalační ZIPy přes GitHub Releases a zjednodušuje interní práci s požadavky a cache MBID.
-
-## Použití
-
-V Material Skin 6.4.6+ otevřít menu vybrané skladby a zvolit **ListenBrainz Love**. Jedno kliknutí rovnou požádá o Love a po ověření zobrazí nativní popup s výsledkem. Při chybě nebo neověřeném zápisu popup nehlásí úspěch. Aktuální pohled se nepřepíná.
-
-Položka **ListenBrainz: Love status** v detailu skladby pouze načte stav: plné srdíčko pro potvrzené Love, obrys pro známý neoznačený stav, otazník při neznámém stavu. Duplicitní příkaz pro stav v místní nabídce Materialu není. U MSID je odlišeno nepotvrzené propojení s MusicBrainz.
-
-Volitelné desktopové srdíčko lze zapnout v nastavení pluginu. Je ve spodní liště vedle hvězdiček a ukazuje ověřený stav aktuální skladby. Kliknutí na prázdné srdíčko požádá o Love; kliknutí na plné srdíčko Love zruší. Ikona se změní až po ověření uloženého stavu. Po nejistém zápisu další kliknutí nejprve obnoví stav. Pravé kliknutí také jen čte a obejde krátkou cache stavu. Dvojklik neopakuje zápis. Změna skladby či přehrávače ruší použití zastaralé odpovědi.
-
-Srdíčko používá dokumentovaný `prefs/material-skin/custom.js`: plugin po výslovném zapnutí přidá označený loader a původní obsah zachová, případně uloží do `custom.js.before-listenbrainzlove`. Vypnutí v nastavení odstraní jen jeho vlastní blok. Po zapnutí/vypnutí obnovit Material; před odinstalací srdíčko vypnout. Jádro Material Skin ani hvězdičky se nemění. Mobilní nabídka funguje dál; tlačítko ve spodní liště je desktopové. Bez zapnutí této volby se `custom.js` nemění.
-
-Ve standardních informacích o skladbě jsou vždy přímé akce **ListenBrainz: Love track**, **ListenBrainz: Unlove track** a odkaz **ListenBrainz: Love status**. Samotné vytvoření nabídky nevolá ListenBrainz. V Materialu obě akce zobrazí ověřený výsledek v popupu a zachová detail skladby; ostatní klienti mají nadále k dispozici OPML callback. Fungují také při zastavení či prázdné frontě, pokud Lyrion zná vybranou skladbu a její spolehlivá metadata. Na chybějící metadata vzdálené skladby plugin asynchronně čeká nejvýše 8 sekund. Zachovává původní výběr i celkový 30sekundový limit, při čekání neposílá požadavky ListenBrainz a zápis Love neopakuje. U vzdálené nepřehrávané položky se vyžaduje známá kladná délka, aby se nepoužila neurčitá rozhlasová stanice jako konkrétní nahrávka. Po načtení metadat poskytovatele lze stav obnovit. Neznámé/neplatné ID nikdy neoznačí místo výběru právě hrající skladbu. Automatická migrace starších oblíbených není součástí této verze.
-
-## Jak se získá identita
-
-1. Zachytit neměnný snímek vybrané skladby v okamžiku kliku. Použít její kanonický objekt podle URL jako AudioScrobbler a metadata poskytovatele pro tutéž URL. TIDAL MAIN/FEATURED a lokální ARTIST/TRACKARTIST se zachovají v úplném kreditu; skladatelé a dirigenti se nepřidávají. Příznak `forceCurrent` a MBID aktuálního přehrávání se nepřebírají pro jinou skladbu.
-2. Upřednostnit důvěryhodné zdrojové recording MBID nebo dříve přijatou cache stejného zdroje a metadat.
-3. Jinak přečíst ListenBrainz playing-now a případně nedávné poslechy. Samotné MSID v playing-now nezastaví hledání dostupného MBID. Historie je omezená na 300 sekund a méně než 100 položek. Sto položek znamená potenciálně oříznutý výsledek a bezpečnou chybu.
-4. Pokud MBID chybí, zavolat autentizovaný `GET /1/metadata/lookup/` s `artist_name`, `recording_name` a případně `release_name`. Samostatná verze skladby je součástí názvu pro lookup.
-5. Přijmout pouze validní recording UUID s odpovídajícím interpretem a názvem včetně verze. Normalizuje se Unicode, velikost písmen a interpunkční oddělovače; žádné fuzzy hádání ani odstraňování live/remix/cover označení. Album je vodítko, nikoli požadavek na stejné vydání. Základní lookup nevrací délku kandidáta, proto se její ověření nepředstírá. U již existujících poslechů se dvě dostupné délky porovnají s tolerancí tří sekund.
-6. Love odeslat samostatným feedbackem s `score=1`. MBID a MSID se posílají společně pouze tehdy, když je stejný přijatý listen výslovně páruje. Při více MSID pro jedno MBID lze použít samotné MBID. Konfliktní MBID nebo nejednoznačná MSID skončí bez zápisu.
-7. Použít cílené `get-feedback-for-recordings` a ověřit přesné ID a `score=1`. Zápis obou ID vyžaduje potvrzenou společnou vazbu. Kontrola není závislá na prvních 100 oblíbených.
-
-Cache přijatých MBID má nejvýše 128 položek a hodinovou platnost; klíč zahrnuje účet, zdrojovou URL, metadata a verzi algoritmu. URL je v klíči hashovaná. Ověření tokenu se ukládá na 5 minut, ověřený stav Love na 30 sekund. Obě nové cache jsou sdílené mezi přehrávači a otevřenými stránkami, mají nejvýše 128 položek a odděluje je SHA-256 účtu a tokenu; samotný token se do cache neukládá. Souběžné kontroly stejné skladby se sloučí. Nenalezení ani chyby se necachují. Změna Love zneplatní cache stavu účtu před operací i po ní; nový stav se uloží až po ověření. Pozdní odpověď starší kontroly ho nepřepíše. Výslovné obnovení stavu obejde cache. Změna provedená mimo plugin se při nové automatické kontrole může projevit až po 30 sekundách; během stejné skladby se stav periodicky nekontroluje.
-
-Rušení Love posílá `score=0`, nikoli dislike (`-1`). Použije stejnou vybranou identitu nebo nedávno ověřenou dvojici MBID/MSID. Cílený readback musí potvrdit nulu u každého poslaného ID; po smazání jsou přípustné samostatné nulové řádky. Rušení Love nikdy nevytváří playing-now. Formát UUID sám neprokazuje typ nebo správnost nahrávky; přímé zdrojové recording MBID se stejně jako u scrobbleru považuje za autoritativní. Textový lookup není důkazem jedinečné shody v celém katalogu.
-
-## Fallback přes MSID
-
-Pouze prázdná odpověď lookupu znamená potvrzené nenalezení. Pak lze použít již existující odpovídající MSID. Pokud chybí i to, výhradně ruční Love skutečně přehrávané skladby znovu ověří stejné aktivní přehrávání a odešle jeden skutečný `playing_now?return_msid=true`, bez timestampu. Na vrácené MSID uloží a ověří Love. Nevzniká dokončený scrobble. Nepřehrávaná skladba bez dohledatelné identity skončí bez zápisu; nepředstírá přehrávání. Čtení stavu tuto cestu nikdy nespouští.
-
-Neúplná odpověď, jiné jméno/verze, síťová chyba nebo vyčerpaný limit nejsou nenalezením a nesmí tiše změnit identitu. MSID úspěch se neoznačuje jako potvrzené MusicBrainz propojení.
+Plugin vyžaduje LMS 9.1.0 nebo novější. Nabídka skladby a volitelné srdíčko v Material Skin vyžadují verzi 6.4.6 nebo novější.
 
 ## Instalace
 
-Do **Settings → Plugins → Additional repositories** přidat:
+1. V LMS otevři **Settings → Plugins → Additional repositories** a přidej adresu repozitáře.
 
-`https://raw.githubusercontent.com/vysmaty/lyrion-listenbrainz-love/main/repo.xml`
+   ```text
+   https://raw.githubusercontent.com/vysmaty/lyrion-listenbrainz-love/main/repo.xml
+   ```
 
-Použít změny, vybrat **ListenBrainz Love** a nainstalovat/restartovat podle výzvy. V nastavení pluginu zadat ListenBrainz username a token. Prázdné pole tokenu při uložení zachová stávající hodnotu. Ověřuje se platnost tokenu i vlastník účtu.
+2. Použij změny, vyber **ListenBrainz Love** a podle výzvy plugin nainstaluj a restartuj LMS.
+3. V nastavení pluginu zadej uživatelské jméno a token ListenBrainz. Plugin ověří, že token patří k účtu. Prázdné pole při uložení zachová stávající token.
 
-Minimální verze je deklarovaná 9.1.0; integrační ověření cílí na Lyrion 9.1.1. Veřejný projekt: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), vydání `v0.7.9`.
+Pro ruční instalaci stáhni instalační ZIP z [GitHub Releases](https://github.com/vysmaty/lyrion-listenbrainz-love/releases). V kořeni ZIPu je `install.xml`. LMS stahuje stejný ZIP z tagu `dist-vX.Y.Z` a kontroluje jeho SHA-1.
 
-Instalační ZIP má `install.xml` v kořeni. `repo.xml` odkazuje na raw ZIP z tagu `dist-v0.7.9` a obsahuje jeho SHA-1. GitHub Releases nabízí stejný instalační ZIP pro ruční instalaci a kontrolní součty SHA-256.
+## Použití
 
-## Bezpečnost a diagnostika
+![Material Skin se srdíčkem v přehrávači (1), nabídkou skladby (2) a akcemi v detailu skladby (3)](https://raw.githubusercontent.com/vysmaty/lyrion-listenbrainz-love/main/screenshot.png)
 
-Pevný origin `https://api.listenbrainz.org`, povolené konkrétní cesty/metody, povinné TLS a ověření hostname, žádné redirecty. Token pouze v Authorization hlavičce, nikdy v URL či logu. Lookup respektuje součet nejvýše 250 Unicode znaků a korektní UTF-8 percent encoding. HTTP požadavek má timeout 8 sekund, operace limit 30 sekund včetně čekání ve frontě. Všechny požadavky pluginu včetně nastavení procházejí jedinou asynchronní FIFO frontou: nanejvýš jeden aktivní požadavek, odstup začátků alespoň 1,05 sekundy a nejvýše 32 čekajících. Propadlý zápis se neodešle. Čekající playing-now těsně před odesláním znovu ověří aktuální přehrávání. HTTP 429 zavádí cooldown podle číselného Retry-After / X-RateLimit-Reset-In; bez údaje 30 sekund. Nulový počet zbývajících požadavků také blokuje další volání. Čekající operace skončí chybou bez automatického opakování. Vypnutí pluginu zruší čekající frontu.
+1. **Srdíčko v desktopovém přehrávači.** Zapni ho v nastavení pluginu a obnov Material Skin. Kliknutím přidáš nebo zrušíš Love, pravým kliknutím načteš uložený stav. Před odinstalací volbu vypni, aby LMS odstranil blok pluginu z `prefs/material-skin/custom.js`.
+2. **Nabídka skladby.** V Material Skin zvol **ListenBrainz Love** u skladby v knihovně nebo ve frontě. Ověřený výsledek se zobrazí v oznámení a zůstaneš v aktuálním pohledu.
+3. **Detail skladby.** Použij **ListenBrainz: Love track**, **ListenBrainz: Unlove track** nebo **ListenBrainz: Love status**. Stejné akce jsou dostupné i ve standardních informacích o skladbě v LMS.
 
-Transport odmítá `single`, `import`, timestampy v now-playing, více skladeb, ruční mapování a jiné hodnoty feedbacku než Love a jeho zrušení. Nikdy se neregistruje globální AudioScrobbler Love handler. Současné opakované změny Love pro stejný přehrávač jsou během ověřování blokované.
+Plné srdíčko znamená potvrzené Love, obrys znamená skladbu bez Love a otazník neznámý stav. Pokud se zápis nepodařilo ověřit, před dalším pokusem obnov stav.
 
-Token je uložený v běžných lokálních LMS preferences, nikoli šifrovaný; zabezpečit administraci serveru a jeho soubory. Plugin nepřebírá token z prostředí. Diagnostický příkaz `listenbrainzlove metadata` přečte objektová/provider/effective ID, ISRC a metadata i při zastavení, bez ListenBrainz requestu. Nevrací token ani potenciálně credentialed streamovou URL.
+## Jak plugin pozná nahrávku
 
-## Ověření a build
+Plugin dává přednost důvěryhodnému ID nahrávky z MusicBrainz (MBID). Při dohledávání používá odpovídající poslechy z ListenBrainz a vyhledávání podle metadat. Rozlišuje stav uložený pod ListenBrainz MSID a stav s potvrzenou vazbou na MusicBrainz.
 
-`prove -v t` (Perl + Node.js pro UI testy): **27 souborů, 616 assertions, PASS**. Regrese zahrnují rozestupy fronty, cooldown, expiraci a vypnutí, životnost a souběh cache, její zneplatnění při změně Love, ověřené rušení Love a klikání na srdíčko. Dále přednost MBID před MSID, lookup před prvním scroblem, české znaky, jiné verze, bezpečné limity, cílený readback, neověřený POST, nepřehrávaný výběr, zákaz falešného playing-now a dva skutečné lokální TCP/HTTP fake servery. Tyto testy nepoužívají skutečný účet ani skutečné Like zápisy.
+Pokud se shoda nenajde a vybraná skladba právě hraje, může ruční akce Love odeslat jedno dočasné oznámení `playing_now`, aby získala MSID. Skladbu bez spolehlivé identity lze označit, až budou dostupná potřebná metadata a podaří se ji dohledat. [Podrobnosti o identitě a API](https://github.com/vysmaty/lyrion-listenbrainz-love/blob/main/docs/UPSTREAM.md)
 
-`python tools/build.py` spustí testy a do `dist/` uloží instalační a zdrojový ZIP, kontrolní součty a vygenerovaný manifest. V `.publication/` připraví publikovatelné zdroje a vynechá lokální diagnostické poznámky a záznamy o poslechu.
+## Řešení potíží
 
-Před vydáním aktualizuj verzi v `install.xml`, User-Agentu, loaderu Materialu a obou README. Posuň pevný čas ZIPu v `tools/build.py`, aby LMS obnovil cache. Odešli odpovídající tag `vX.Y.Z` na commitu z větve `main`. Akce Release zveřejní ZIPy a vytvoří samostatný tag `dist-vX.Y.Z` pro instalační ZIP. Obě adresy ověří stažením, potom aktualizuje `repo.xml` ve větvi `main`.
+- U vzdálené skladby s chybějícími metadaty počkej na poskytovatele a obnov stav Love. Plugin na metadata při jednom pokusu čeká nejvýše osm sekund.
+- Změny provedené na ListenBrainz načteš hned přes **ListenBrainz: Love status** nebo pravým kliknutím na srdíčko. Automatická kontrola může až 30 sekund používat poslední ověřený stav.
+- Příkaz `listenbrainzlove metadata` zobrazí metadata LMS a poskytovatele bez požadavku na ListenBrainz. LMS ukládá token v nešifrovaných místních nastaveních, proto omez přístup k serveru a jeho souborům.
 
-Testovací Perl nemá IO::Socket::SSL: testy transportu používají facades a nevydávají se za reálný TLS handshake. Před vydáním je potřeba doplnit ověření v cílovém LMS a Material Skin; skutečný feedback lze ověřit ručním kliknutím uživatele.
+## Vývoj
 
-[English](README.en.md) · [ověřené API a zdroje](docs/UPSTREAM.md) · [licence](LICENSE)
+Offline testy spustíš příkazem `prove -v t` s Perlem a Node.js. Příkaz `python tools/build.py` spustí testy a do `dist/` uloží instalační ZIP, zdrojový archiv, kontrolní součty a vygenerovaný manifest.
+
+Před vydáním aktualizuj verzi v `install.xml`, User-Agentu, loaderu Materialu a obou README. Posuň pevný čas ZIPu v `tools/build.py`, aby LMS obnovil cache. Odešli odpovídající tag `vX.Y.Z` na commitu z větve `main`. Před aktualizací `repo.xml` se ověří příloha GitHub Release i raw odkaz. [Akce Release](https://github.com/vysmaty/lyrion-listenbrainz-love/blob/main/.github/workflows/release.yml)
+
+## Autorství
+
+Plugin spravuje [vysmaty](https://github.com/vysmaty). Na jeho přípravě a vývoji spolupracovala AI.
+
+[Licence MIT](LICENSE)
