@@ -64,11 +64,11 @@ sub _run {
  } else {$invalidate->();$generation=$state->{generation}}
  my $wanted=$mode eq 'unlove'?0:1;
  my $request=sub {
-  my ($method,$path,$auth,$body,$cb)=@_;
+  my ($method,$path,$body,$cb)=@_;
   return $fail->('Click expired; click Love again') if $clock->()>=$deadline;
   my $called=0;
   my $ok=eval {
-   $self->{transport}->($method,'https://api.listenbrainz.org'.$path,$auth?{Authorization=>'Token '.$token}:{},$body,sub {
+   $self->{transport}->($method,'https://api.listenbrainz.org'.$path,{Authorization=>'Token '.$token},$body,sub {
     return if $called++ || $finished;
     my ($error,$data)=@_;
     if (defined($error) && $error eq 'Provider authentication failed') {delete $state->{auth}{$credential_key};$invalidate->()}
@@ -87,7 +87,7 @@ sub _run {
   my ($identity,$source,$written)=@_;
   my @keys=sort keys %$identity;
   my $path="/1/feedback/user/$user/get-feedback-for-recordings?".join('&',map {$_.'s='.lc($identity->{$_})} @keys);
-  $request->('GET',$path,1,undef,sub {
+  $request->('GET',$path,undef,sub {
    my ($data)=@_;
    return $fail->('Invalid readback payload') unless ref($data->{feedback}) eq 'ARRAY' && @{$data->{feedback}}<=4;
    my (%scores,$paired);
@@ -112,7 +112,7 @@ sub _run {
   my ($identity,$source)=@_;
   return $read->($identity,$source,0) if $mode eq 'status';
   $write_started=1;
-  $request->('POST','/1/feedback/recording-feedback',1,{%$identity,score=>$wanted},sub {
+  $request->('POST','/1/feedback/recording-feedback',{%$identity,score=>$wanted},sub {
    my ($post)=@_; return $fail->('Feedback rejected') unless ($post->{status}||'') eq 'ok';
    $read->($identity,$source,1);
   });
@@ -132,7 +132,7 @@ sub _run {
   $info->{version}=$track->{version} if length $track->{version};
   my $meta={artist_name=>$track->{artist},track_name=>$track->{title},additional_info=>$info};
   $meta->{release_name}=$track->{release} if length $track->{release};
-  $request->('POST','/1/submit-listens?return_msid=true',1,{listen_type=>'playing_now',payload=>[{track_metadata=>$meta}]},sub {
+  $request->('POST','/1/submit-listens?return_msid=true',{listen_type=>'playing_now',payload=>[{track_metadata=>$meta}]},sub {
    my ($reply)=@_;
    return $fail->('Playing-now did not return a valid recording identity') unless ($reply->{status}||'') eq 'ok' && uuid($reply->{recording_msid});
    $send->({recording_msid=>lc($reply->{recording_msid})},'playing_now');
@@ -144,21 +144,20 @@ sub _run {
   return $fail->('Metadata lookup exceeds 250-character limit') if length($track->{artist})+length($title)+length($track->{release})>250;
   my $path='/1/metadata/lookup/?artist_name='.Plugins::ListenBrainzLove::Identity::escape($track->{artist}).'&recording_name='.Plugins::ListenBrainzLove::Identity::escape($title);
   $path.='&release_name='.Plugins::ListenBrainzLove::Identity::escape($track->{release}) if length($track->{release});
-  $request->('GET',$path,1,undef,sub {
+  $request->('GET',$path,undef,sub {
    my ($data)=@_;
    return $fallback->() unless keys %$data;
    return $fail->('Invalid metadata lookup response') unless uuid($data->{recording_mbid}) && Plugins::ListenBrainzLove::Identity::text($data->{recording_name}) && Plugins::ListenBrainzLove::Identity::text($data->{artist_credit_name});
    return $fail->('Metadata lookup returned a different artist or recording version') unless Plugins::ListenBrainzLove::Identity::same_recording($track,$data->{artist_credit_name},$data->{recording_name});
-   delete $cache->{$_} for grep {$cache->{$_}{expires}<=$now} keys %$cache;
-   if (keys(%$cache)>=128) {my ($oldest)=sort {$cache->{$a}{expires}<=>$cache->{$b}{expires}} keys %$cache; delete $cache->{$oldest}}
-   $cache->{$cache_key}={mbid=>lc($data->{recording_mbid}),expires=>$now+3600};
-   $send->({recording_mbid=>lc($data->{recording_mbid})},'metadata_lookup');
+   my $mbid=lc($data->{recording_mbid});
+   _store($cache,$cache_key,{mbid=>$mbid,expires=>$now+3600},$now);
+   $send->({recording_mbid=>$mbid},'metadata_lookup');
   });
  };
  $lookup=sub {
   my ($recent)=@_;
   my $path=$recent ? '/listens?count=100&min_ts='.int($now-300) : '/playing-now';
-  $request->('GET',"/1/user/$user$path",1,undef,sub {
+  $request->('GET',"/1/user/$user$path",undef,sub {
    my ($data)=@_;
    return $fail->('Invalid listen payload') unless ref($data->{payload}) eq 'HASH' && ref($data->{payload}{listens}) eq 'ARRAY';
    my $rows=$data->{payload}{listens};
@@ -202,7 +201,7 @@ sub _run {
  };
  my $auth=($state->{auth}||{})->{$credential_key};
  return $validated->() if ref($auth) eq 'HASH' && $auth->{expires}>$now;
- $request->('GET','/1/validate-token',1,undef,sub {
+ $request->('GET','/1/validate-token',undef,sub {
   my ($valid)=@_;
   return $fail->('Invalid token or username') unless defined($valid->{valid}) && "$valid->{valid}" eq '1' && ($valid->{user_name}||'') eq $user;
   _store($state->{auth}||={},$credential_key,{expires=>$clock->()+300},$clock->());

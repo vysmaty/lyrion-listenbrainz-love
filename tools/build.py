@@ -3,6 +3,7 @@
 import hashlib
 import json
 import pathlib
+import re
 import shutil
 import subprocess
 import zipfile
@@ -12,10 +13,11 @@ root = pathlib.Path(__file__).resolve().parents[1]
 out = root / 'dist'
 stage = root / '.publication'
 version = ET.parse(root / 'Plugins/ListenBrainzLove/install.xml').findtext('version')
-assert version == '0.7.8', 'Review release metadata before changing version'
+if version is None or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version):
+    raise SystemExit('install.xml must contain a numeric X.Y.Z version')
 # Advance the fixed timestamp on each release so LMS invalidates compiled
 # templates and assets, while repeated builds of this release stay identical.
-archive_timestamp = (2026, 11, 7, 12, 10, 0)
+archive_timestamp = (2026, 11, 9, 12, 0, 0)
 repository = 'https://github.com/vysmaty/lyrion-listenbrainz-love'
 
 # Explicit publication allowlist: never archive arbitrary files from the worktree.
@@ -26,7 +28,8 @@ for directory, pattern in (('Plugins/ListenBrainzLove', '*.pm'),
                            ('Plugins/ListenBrainzLove', '*.html'),
                            ('Plugins/ListenBrainzLove', '*.svg'),
                            ('Plugins/ListenBrainzLove', '*.js'),
-                           ('t', '*.t'), ('t', '*.cjs'), ('tools', '*.py'), ('docs', '*.md')):
+                           ('t', '*.t'), ('t', '*.cjs'), ('t/fixtures', '*.pm'),
+                           ('tools', '*.py'), ('docs', '*.md')):
     local_notes = {'IDENTITY-RESEARCH.md', 'SCROBBLER-COMPARISON.md'}
     files.extend(sorted(p for p in (root / directory).rglob(pattern)
                         if p.name not in local_notes))
@@ -83,13 +86,13 @@ ET.SubElement(entry, 'title', lang='EN').text = 'ListenBrainz Love'
 ET.SubElement(entry, 'desc', lang='EN').text = 'Explicit ListenBrainz Love with exact recording verification; no scrobbling.'
 for tag, text in (('creator', 'ListenBrainzLove contributors'), ('category', 'tools'),
                   ('link', repository),
-                  ('url', f'https://raw.githubusercontent.com/vysmaty/lyrion-listenbrainz-love/dist-v{version}/dist/{plugin.name}'),
+                  ('url', f'{repository}/releases/download/v{version}/{plugin.name}'),
                   ('sha', sha1)):
     ET.SubElement(entry, tag).text = text
 ET.indent(extensions, space='  ')
-ET.ElementTree(extensions).write(root / 'repo.xml', encoding='UTF-8', xml_declaration=True)
-assert ET.parse(root / 'repo.xml').findtext('./plugins/plugin/sha') == sha1
-files.append(root / 'repo.xml')
+feed = out / 'repo.xml'
+feed.write_bytes(ET.tostring(extensions, encoding='UTF-8', xml_declaration=True))
+assert ET.parse(feed).findtext('./plugins/plugin/sha') == sha1
 
 if stage.exists():
     assert stage.resolve() == root.resolve() / '.publication'
@@ -100,9 +103,10 @@ for p in files:
     dest = stage / p.relative_to(root)
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(p.read_bytes().replace(b'\r\n', b'\n'))
+shutil.copyfile(feed, stage / 'repo.xml')
 source = out / f'ListenBrainzLove-{version}-source.zip'
-archive(source, [(stage / p.relative_to(root), 'lyrion-listenbrainz-love/' + p.relative_to(root).as_posix()) for p in files])
-shutil.copyfile(root / 'repo.xml', out / 'repo.xml')
+source_paths = [p.relative_to(root) for p in files] + [pathlib.Path('repo.xml')]
+archive(source, [(stage / p, 'lyrion-listenbrainz-love/' + p.as_posix()) for p in source_paths])
 manifest = {p.name: {'sha1': hashlib.sha1(p.read_bytes()).hexdigest(),
                      'sha256': hashlib.sha256(p.read_bytes()).hexdigest(),
                      'bytes': p.stat().st_size} for p in (plugin, source)}

@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  queue: max
+
+jobs:
+  publish:
+    if: github.repository == 'vysmaty/lyrion-listenbrainz-love'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Build and publish the tagged release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git merge-base --is-ancestor HEAD origin/main
+          version="${GITHUB_REF_NAME#v}"
+          python3 tools/build.py
+          plugin="dist/ListenBrainzLove-$version.zip"
+          test -f "$plugin"
+          assets=("$plugin" "dist/ListenBrainzLove-$version-source.zip" dist/manifest.json dist/SHA1SUMS dist/SHA256SUMS)
+
+          if draft=$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq '.isDraft'); then
+            if [[ "$draft" == true ]]; then
+              gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
+              gh release edit "$GITHUB_REF_NAME" --draft=false
+            fi
+          else
+            gh release create "$GITHUB_REF_NAME" "${assets[@]}" --verify-tag --generate-notes
+          fi
+
+          url=$(python3 -c 'import xml.etree.ElementTree as ET; print(ET.parse("dist/repo.xml").findtext("./plugins/plugin/url"))')
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+            --retry 4 --retry-all-errors --max-time 30 --output "$RUNNER_TEMP/release.zip" "$url"
+          cmp "$plugin" "$RUNNER_TEMP/release.zip"
+
+          git fetch origin refs/heads/main:refs/remotes/origin/main
+          git switch --detach origin/main
+          current=$(python3 -c 'import xml.etree.ElementTree as ET; print(ET.parse("repo.xml").find("./plugins/plugin").attrib["version"])')
+          if [[ "$(printf '%s\n' "$version" "$current" | sort -V | tail -n 1)" != "$version" ]]; then
+            echo "repo.xml already advertises the newer version $current."
+            exit 0
+          fi
+          cp dist/repo.xml repo.xml
+          if git diff --quiet -- repo.xml; then
+            exit 0
+          fi
+          git add -- repo.xml
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m "chore: advertise ListenBrainzLove $version"
+          git push origin HEAD:refs/heads/main

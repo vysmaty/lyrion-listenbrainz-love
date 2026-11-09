@@ -1,10 +1,10 @@
-# ListenBrainzLove 0.7.8
+# ListenBrainzLove 0.7.9
 
 [Česky](README.cs.md)
 
 Standalone Perl plugin for Lyrion Music Server 9.1.x. Explicitly Love a selected recording on ListenBrainz and verify the saved state, including a track that is not playing. Existing scrobblers continue to submit completed listens.
 
-Version 0.7.8 honors HTTP 429 cooldowns delivered through the LMS error callback. The plugin also sends its name, version and maintainer contact URL in the documented ListenBrainz User-Agent format.
+Version 0.7.9 publishes installer ZIPs through GitHub Releases and simplifies internal request handling and MBID caching.
 
 ## Use
 
@@ -37,9 +37,9 @@ Add under **Settings → Plugins → Additional repositories**, apply, select **
 
 `https://raw.githubusercontent.com/vysmaty/lyrion-listenbrainz-love/main/repo.xml`
 
-Configure username/token in plugin settings. Empty token input preserves the saved token; validation checks ownership. Minimum declared LMS 9.1.0; integration targets 9.1.1. Repository: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), release `v0.7.8`.
+Configure username/token in plugin settings. Empty token input preserves the saved token; validation checks ownership. Minimum declared LMS 9.1.0; integration targets 9.1.1. Repository: [vysmaty/lyrion-listenbrainz-love](https://github.com/vysmaty/lyrion-listenbrainz-love), release `v0.7.9`.
 
-The exact generated `ListenBrainzLove-0.7.8.zip` has `install.xml` at root. `repo.xml` points to the immutable `dist-v0.7.8` distribution tag and contains SHA-1 of complete ZIP bytes. SHA-256 is provided separately. GitHub's automatic source archive is not an installable plugin ZIP.
+The installer `ListenBrainzLove-0.7.9.zip` has `install.xml` at its root. `repo.xml` points directly to the GitHub Release attachment and contains the SHA-1 of the complete ZIP. The release also provides SHA-256 checksums. Use the named installer attachment for manual installations.
 
 ## Safety and diagnostics
 
@@ -53,7 +53,9 @@ Tokens are stored in ordinary unencrypted local LMS preferences; protect adminis
 
 `prove -v t` (Perl plus Node.js for UI tests): **27 files, 616 assertions, PASS**. Covers queue timing, cooldown, expiry/shutdown, cache TTL/coalescing/invalidation, verified removal and UI interactions, plus MBID/MSID priority, lookup before the first scrobble, Unicode, conflicting versions, bounds, targeted readback, uncertain POST, non-playing selection and preventing fake playing-now, with two real local TCP/HTTP fake providers. No real account or feedback writes are used by these tests.
 
-`python tools/build.py` runs tests and creates the plugin/source ZIPs, checksums, generated repo.xml and clean allowlisted `.publication/` sources. Local diagnostic notes and listening evidence are excluded. The build never publishes or deploys.
+`python tools/build.py` runs tests and writes the installer, source ZIP, checksums and generated manifest to `dist/`. The build prepares the allowlisted sources in `.publication/` and excludes local diagnostic notes and listening evidence.
+
+To release, update the version in `install.xml`, the User-Agent, the Material loader and both READMEs. Advance the fixed ZIP timestamp in `tools/build.py` so LMS refreshes its caches. Push a matching `vX.Y.Z` tag on a commit from `main`. The Release workflow publishes the ZIPs, downloads and verifies the installer, then commits the updated `repo.xml` to `main`.
 
 The test Perl lacks IO::Socket::SSL; transport facades are not a live TLS handshake. Target LMS and Material verification is a separate release check; an actual user click verifies a real feedback write.
 

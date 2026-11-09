@@ -1,19 +1,9 @@
 use strict; use warnings; use utf8; use Test::More; use lib '.';
+use lib 't/fixtures';
+use TransportFixture;
 use Plugins::ListenBrainzLove::Identity;
-BEGIN {
- $INC{'Slim/Utils/Timers.pm'}=1;
- package Slim::Utils::Timers;sub killTimers {} sub setTimer {die 'Unexpected timer in immediate-response fixture'}
- package main;
- $INC{'Slim/Networking/SimpleAsyncHTTP.pm'}=1;
- package Slim::Networking::SimpleAsyncHTTP;
- our (@calls,$status);$status=200;
- sub hasSSL {1}
- sub new {my ($class,$ok,$err,$args)=@_;bless {ok=>$ok},$class}
- sub get {my ($self,@request)=@_;push @calls,\@request;$self->{ok}->($self)}
- sub post {shift->get(@_)} sub code {$status} sub content {'{"status":"ok"}'}
-}
 use Plugins::ListenBrainzLove::Transport;
-{no warnings 'redefine';my $tick=0;*Plugins::ListenBrainzLove::Transport::_now=sub {$tick+=2}}
+TransportFixture::use_advancing_clock();
 my $mbid='11111111-2222-4333-8444-555555555555';
 my $msid='aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 my $origin='https://api.listenbrainz.org';
@@ -34,10 +24,10 @@ for my $case (
  ['POST',"$origin/1/feedback/recording-feedback",{recording_mbid=>'invalid',score=>1},0],
  ['POST',"$origin/1/metadata/submit_manual_mapping",{recording_mbid=>$mbid,recording_msid=>$msid},0],
 ) {
- my ($method,$url,$body,$allowed)=@$case;my $error;my $before=@Slim::Networking::SimpleAsyncHTTP::calls;
+ my ($method,$url,$body,$allowed)=@$case;my $error;my $before=@TransportFixture::requests;
  Plugins::ListenBrainzLove::Transport::request($method,$url,{Authorization=>'Token fixture-only'},$body,sub {$error=shift});
  is($error?0:1,$allowed,"transport policy: $method $url");
- is(scalar(@Slim::Networking::SimpleAsyncHTTP::calls)-$before,$allowed,'rejected operation never reaches HTTP');
+ is(scalar(@TransportFixture::requests)-$before,$allowed,'rejected operation never reaches HTTP');
 }
 my $track={artist=>'Radost',title=>'Inspektor Drahota',version=>''};
 ok(Plugins::ListenBrainzLove::Identity::same_recording($track,'RADOST','Inspektor Drahota'),'case normalization preserves the recording');
@@ -57,14 +47,14 @@ ok(!Plugins::ListenBrainzLove::Identity::same_listen({%$track,duration=>190},$me
  no warnings qw(redefine once);
  my $now=1000;
  local *Plugins::ListenBrainzLove::Transport::_now=sub {$now};
- local $Slim::Networking::SimpleAsyncHTTP::status=429;
+ local $TransportFixture::status=429;
  my $error;
  Plugins::ListenBrainzLove::Transport::request('GET',"$origin/1/validate-token",{},undef,sub {$error=shift});
  like($error,qr/rate limit/,'429 is classified without retrying the request');
- my $count=@Slim::Networking::SimpleAsyncHTTP::calls;
- $Slim::Networking::SimpleAsyncHTTP::status=200;
+ my $count=@TransportFixture::requests;
+ $TransportFixture::status=200;
  Plugins::ListenBrainzLove::Transport::request('GET',"$origin/1/validate-token",{},undef,sub {$error=shift});
- is(scalar @Slim::Networking::SimpleAsyncHTTP::calls,$count,'cooldown protects the provider against repeated clicks');
+ is(scalar @TransportFixture::requests,$count,'cooldown protects the provider against repeated clicks');
  $now=1031;
  Plugins::ListenBrainzLove::Transport::request('GET',"$origin/1/validate-token",{},undef,sub {$error=shift});
  ok(!$error,'a manual request can succeed after the cooldown');

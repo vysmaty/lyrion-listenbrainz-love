@@ -10,7 +10,7 @@
       <creator>ListenBrainzLove contributors</creator>
       <category>tools</category>
       <link>https://github.com/vysmaty/lyrion-listenbrainz-love</link>
-      <url>https://raw.githubusercontent.com/vysmaty/lyrion-listenbrainz-love/dist-v0.7.8/dist/ListenBrainzLove-0.7.8.zip</url>
+      <url>https://github.com/vysmaty/lyrion-listenbrainz-love/releases/download/v0.7.8/ListenBrainzLove-0.7.8.zip</url>
       <sha>3c181397db2cc9a392590c97dcce2c6cf11f84f2</sha>
     </plugin>
   </plugins>
