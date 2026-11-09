@@ -42,11 +42,11 @@ out.mkdir(exist_ok=True)
 prove = shutil.which('prove')
 if prove is None:
     raise SystemExit('Install Perl prove and add it to PATH before building')
-tests = subprocess.run([prove, '-v', 't'], cwd=root, text=True,
+tests = subprocess.run([prove, '-v', 't'], cwd=root,
                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 # Do not overwrite historical development logs.
-(root / 'evidence/publication-tests.log').write_text(tests.stdout)
-print(tests.stdout)
+(root / 'evidence/publication-tests.log').write_bytes(tests.stdout)
+print(tests.stdout.decode('utf-8', errors='backslashreplace'))
 if tests.returncode:
     raise SystemExit(tests.returncode)
 
